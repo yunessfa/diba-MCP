@@ -57,21 +57,3 @@ export async function request(url: string, opts: RequestOptions = {}): Promise<a
   }
   return data;
 }
-
-/** دانلود فایل از URL (برای آپلود دوباره در پیام‌رسان‌هایی که URL قبول نمی‌کنند) */
-export async function downloadFile(url: string, maxBytes = 20 * 1024 * 1024): Promise<{ blob: Blob; filename: string }> {
-  let res: Awaited<ReturnType<typeof netFetch>>;
-  try {
-    res = await netFetch(url, { signal: AbortSignal.timeout(60_000) });
-  } catch (err: any) {
-    throw new ProviderError(`دانلود فایل ناموفق بود: ${err?.message ?? err}`);
-  }
-  if (!res.ok) throw new ProviderError(`دانلود فایل ناموفق بود (HTTP ${res.status})`);
-  const len = Number(res.headers.get("content-length") ?? 0);
-  if (len > maxBytes) throw new ProviderError(`حجم فایل بیشتر از ${Math.round(maxBytes / 1048576)} مگابایت است`);
-  const buf = await res.arrayBuffer();
-  if (buf.byteLength > maxBytes) throw new ProviderError(`حجم فایل بیشتر از ${Math.round(maxBytes / 1048576)} مگابایت است`);
-  const type = res.headers.get("content-type") ?? "application/octet-stream";
-  const fromUrl = decodeURIComponent(new URL(url).pathname.split("/").pop() || "file");
-  return { blob: new Blob([buf], { type }), filename: fromUrl };
-}

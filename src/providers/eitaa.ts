@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { downloadFile, request } from "../core/http.js";
+import { request } from "../core/http.js";
+import { isUploadable, loadMedia, mediaField } from "../core/media.js";
 import { FormData } from "../core/net.js";
 import { defineTool, ProviderError, type ProviderContext, type ProviderDef } from "../core/types.js";
 import { chatIdOf } from "./telegram-like.js";
@@ -9,9 +10,9 @@ import { chatIdOf } from "./telegram-like.js";
  *   {baseUrl}/{token}/{method}   — POST با form-data
  * نکته: ایتایار فقط ارسال به کانال/گروه را پشتیبانی می‌کند و دریافت پیام ندارد.
  */
-async function call(ctx: ProviderContext, method: string, form?: FormData) {
+async function call(ctx: ProviderContext, method: string, form?: FormData, timeoutMs?: number) {
   const { token, baseUrl } = ctx.config;
-  const data = await request(`${baseUrl.replace(/\/+$/, "")}/${token}/${method}`, { form, secrets: [token] });
+  const data = await request(`${baseUrl.replace(/\/+$/, "")}/${token}/${method}`, { form, timeoutMs, secrets: [token] });
   if (data && data.ok === false) {
     throw new ProviderError(`ایتا: ${data.description ?? "خطای ناشناخته"}`, data);
   }
@@ -27,6 +28,15 @@ function formOf(obj: Record<string, unknown>): FormData {
   return f;
 }
 
+/** ایتایار file_id ندارد؛ همیشه آپلود می‌شود */
+async function sendFile(ctx: ProviderContext, value: string, fields: Record<string, unknown>, opts: { expect?: "image"; filename?: string } = {}) {
+  if (!isUploadable(value)) throw new ProviderError("ایتا فقط لینک فایل یا فایل انتخاب‌شده را قبول می‌کند (file_id پشتیبانی نمی‌شود)");
+  const media = await loadMedia(value, opts);
+  const f = formOf(fields);
+  f.append("file", media.blob, media.filename);
+  return call(ctx, "sendFile", f, 120_000);
+}
+
 const chatId = z.string().optional().describe("Channel/group id or username without @. If omitted, the default chat from settings is used.");
 
 export const eitaa: ProviderDef = {
@@ -36,7 +46,7 @@ export const eitaa: ProviderDef = {
   category: "messenger",
   color: "#f08a24",
   glyph: "ا",
-  description: "ارسال پیام و فایل به کانال‌ها و گروه‌های ایتا از طریق ایتایار",
+  description: "ارسال پیام، عکس و فایل به کانال‌ها و گروه‌های ایتا از طریق ایتایار",
   docsUrl: "https://eitaayar.ir/",
   fields: [
     { key: "token", label: "توکن ایتایار", type: "secret", required: true, placeholder: "bot12345:xxxxxxxx-xxxx-...", help: "از پنل eitaayar.ir بگیرید" },
@@ -72,23 +82,30 @@ export const eitaa: ProviderDef = {
       handler: (a, ctx) => call(ctx, "sendMessage", formOf({ ...a, chat_id: chatIdOf(ctx, a.chat_id) })),
     }),
     defineTool({
-      name: "eitaa_send_file",
-      title: "ارسال فایل از لینک",
-      description:
-        "Download a file from a public URL and send it to an Eitaa channel/group with an optional caption (max 20MB). Use .gif extension for GIFs and .webp for stickers.",
+      name: "eitaa_send_photo",
+      title: "ارسال عکس",
+      description: "Send a photo to an Eitaa channel/group with an optional caption (max 20MB).",
       input: {
         chat_id: chatId,
-        file_url: z.string().url().describe("Public URL of the file"),
+        photo: mediaField("image", "The image (file_id is not supported by Eitaayar)"),
+        caption: z.string().optional(),
+      },
+      annotations: { openWorldHint: true },
+      handler: (a, ctx) => sendFile(ctx, a.photo, { chat_id: chatIdOf(ctx, a.chat_id), caption: a.caption }, { expect: "image" }),
+    }),
+    defineTool({
+      name: "eitaa_send_file",
+      title: "ارسال فایل",
+      description:
+        "Send any file to an Eitaa channel/group with an optional caption (max 20MB). Use .gif extension for GIFs and .webp for stickers.",
+      input: {
+        chat_id: chatId,
+        file: mediaField("file", "The file (file_id is not supported by Eitaayar)"),
         caption: z.string().optional(),
         filename: z.string().optional().describe("Override file name (extension matters)"),
       },
       annotations: { openWorldHint: true },
-      handler: async (a, ctx) => {
-        const { blob, filename } = await downloadFile(a.file_url);
-        const f = formOf({ chat_id: chatIdOf(ctx, a.chat_id), caption: a.caption });
-        f.append("file", blob, a.filename || filename);
-        return call(ctx, "sendFile", f);
-      },
+      handler: (a, ctx) => sendFile(ctx, a.file, { chat_id: chatIdOf(ctx, a.chat_id), caption: a.caption }, { filename: a.filename }),
     }),
   ],
 };

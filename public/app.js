@@ -65,6 +65,8 @@ const icons = {
   logout: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 4h5v16h-5M10 8l-4 4 4 4M6 12h10"/></svg>',
   chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>',
   eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+  image: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>',
+  file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>',
   refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>',
 };
 
@@ -389,6 +391,7 @@ function inputFor(name, prop, required, p) {
   const desc = prop.description ? `<span class="hint ltr" style="display:block;text-align:right">${esc(prop.description)}</span>` : "";
   const label = `<label for="${id}"><span class="ltr mono">${esc(name)}</span>${required ? '<span class="req">*</span>' : ""}</label>`;
   const type = prop.type || prop.anyOf?.[0]?.type;
+  if (prop["x-media"]) return mediaInput(id, name, label, prop["x-media"], prop.description);
   if (type === "boolean")
     return `<div class="field"><span class="field-label">${label}</span><div class="check"><label class="switch"><input type="checkbox" id="${id}" data-arg="${name}" data-type="boolean"><span></span></label></div>${desc}</div>`;
   if (type === "number" || type === "integer")
@@ -399,6 +402,115 @@ function inputFor(name, prop, required, p) {
   return long
     ? `<div class="field wide">${label}<textarea id="${id}" class="textarea" data-arg="${name}" dir="auto"></textarea>${desc}</div>`
     : `<div class="field">${label}<input id="${id}" class="input${/(_id|url|photo)$/.test(name) ? " ltr-input" : ""}" dir="auto" data-arg="${name}" placeholder="${esc(ph)}">${desc}</div>`;
+}
+
+// ---------- فیلد رسانه: لینک، file_id یا انتخاب فایل از دستگاه ----------
+const MAX_UPLOAD = 20 * 1024 * 1024;
+const humanSize = (n) => (n < 1024 * 1024 ? `${fa(Math.max(1, Math.round(n / 1024)))} کیلوبایت` : `${fa((n / 1048576).toFixed(1))} مگابایت`);
+
+function mediaInput(id, name, label, kind, description) {
+  const isImage = kind === "image";
+  return `<div class="field wide">${label}
+    <div class="media-box" data-media="${kind}">
+      <div class="media-preview" aria-hidden="true">${isImage ? icons.image : icons.file}</div>
+      <div class="media-body">
+        <div class="media-row">
+          <input id="${id}" class="input ltr-input" data-arg="${name}" data-type="media" placeholder="https://…  یا  file_id" autocomplete="off">
+          <button type="button" class="btn" data-pick>${isImage ? "انتخاب عکس" : "انتخاب فایل"}</button>
+          <button type="button" class="btn btn-icon btn-quiet" data-clear-media hidden aria-label="حذف فایل">✕</button>
+        </div>
+        <span class="hint">لینک بدهید یا فایل را انتخاب کنید یا همین‌جا بکشید و رها کنید${isImage ? " (Ctrl+V هم کار می‌کند)" : ""}. حداکثر ۲۰ مگابایت.</span>
+      </div>
+      <input type="file" hidden data-file ${isImage ? 'accept="image/*"' : ""}>
+    </div>
+  </div>`;
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).replace(/^data:([^;,]*)/, (m, mime) => `data:${mime || "application/octet-stream"};name=${encodeURIComponent(file.name)}`));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+}
+
+function bindMediaFields(root) {
+  root.querySelectorAll(".media-box").forEach((box) => {
+    const input = box.querySelector("[data-arg]");
+    const picker = box.querySelector("[data-file]");
+    const preview = box.querySelector(".media-preview");
+    const clearBtn = box.querySelector("[data-clear-media]");
+    const isImage = box.dataset.media === "image";
+    let objectUrl = null;
+
+    const showIcon = () => { preview.innerHTML = isImage ? icons.image : icons.file; preview.classList.remove("has-img"); };
+    const showImg = (src) => {
+      const img = new Image();
+      img.alt = "";
+      img.onload = () => { preview.replaceChildren(img); preview.classList.add("has-img"); };
+      img.onerror = showIcon;
+      img.src = src;
+    };
+    const reset = () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = null;
+      delete input.dataset.dataUrl;
+      input.readOnly = false;
+      input.value = "";
+      input.classList.add("ltr-input");
+      clearBtn.hidden = true;
+      showIcon();
+    };
+    const useFile = async (file) => {
+      if (!file) return;
+      if (file.size > MAX_UPLOAD) return toast(`حجم «${file.name}» بیشتر از ۲۰ مگابایت است`, true);
+      if (isImage && !file.type.startsWith("image/")) return toast("این فایل عکس نیست", true);
+      reset();
+      input.dataset.dataUrl = await fileToDataUrl(file);
+      input.value = `${file.name} — ${humanSize(file.size)}`;
+      input.readOnly = true;
+      input.classList.remove("ltr-input");
+      clearBtn.hidden = false;
+      if (file.type.startsWith("image/")) showImg((objectUrl = URL.createObjectURL(file)));
+      else showIcon();
+    };
+
+    box.querySelector("[data-pick]").onclick = () => picker.click();
+    picker.onchange = () => { useFile(picker.files[0]); picker.value = ""; };
+    clearBtn.onclick = () => { reset(); input.focus(); };
+    input.addEventListener("input", () => {
+      const v = input.value.trim();
+      if (isImage && /^https?:\/\/\S+$/i.test(v)) showImg(v);
+      else showIcon();
+    });
+    box.addEventListener("dragover", (e) => { e.preventDefault(); box.classList.add("drag"); });
+    box.addEventListener("dragleave", () => box.classList.remove("drag"));
+    box.addEventListener("drop", (e) => {
+      e.preventDefault();
+      box.classList.remove("drag");
+      const f = e.dataTransfer.files[0];
+      if (f) useFile(f);
+      else {
+        const url = e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text/plain");
+        if (url) { reset(); input.value = url.trim(); input.dispatchEvent(new Event("input")); }
+      }
+    });
+    if (isImage) {
+      root.addEventListener("paste", (e) => {
+        const item = [...(e.clipboardData?.items ?? [])].find((i) => i.type.startsWith("image/"));
+        if (!item) return;
+        e.preventDefault();
+        const f = item.getAsFile();
+        useFile(new File([f], f.name && f.name !== "image.png" ? f.name : `clipboard-${Date.now()}.png`, { type: f.type }));
+      });
+    }
+  });
+}
+
+/** برای نمایش «ورودی JSON»: data URLها کوتاه نشان داده می‌شوند */
+function shortenDataUrls(args) {
+  return Object.fromEntries(Object.entries(args).map(([k, v]) => [k, typeof v === "string" && v.startsWith("data:") ? `${v.slice(0, v.indexOf(","))},… (${humanSize(v.length * 0.75)})` : v]));
 }
 
 async function pagePlayground(main, q) {
@@ -445,6 +557,7 @@ async function pagePlayground(main, q) {
     pane.querySelectorAll("[data-arg]").forEach((el) => {
       const k = el.dataset.arg;
       if (el.dataset.type === "boolean") { if (el.checked) args[k] = true; return; }
+      if (el.dataset.type === "media" && el.dataset.dataUrl) { args[k] = el.dataset.dataUrl; return; }
       const v = el.value.trim();
       if (v === "") return;
       args[k] = el.dataset.type === "number" ? Number(v) : v;
@@ -454,8 +567,9 @@ async function pagePlayground(main, q) {
   const result = document.getElementById("result");
   document.getElementById("show-args").onclick = () => {
     result.hidden = false;
-    result.innerHTML = `<div class="result-head"><h2>ورودی</h2></div><pre class="json">${jsonHtml(collect())}</pre>`;
+    result.innerHTML = `<div class="result-head"><h2>ورودی</h2></div><pre class="json">${jsonHtml(shortenDataUrls(collect()))}</pre>`;
   };
+  bindMediaFields(pane);
   document.getElementById("tool-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const btn = e.target.querySelector("[type=submit]");

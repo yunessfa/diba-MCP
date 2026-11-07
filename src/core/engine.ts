@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { RateLimiter } from "./auth.js";
 import { CallLogger } from "./logger.js";
+import { summarizeForLog } from "./media.js";
 import { ConfigStore, envKey } from "./store.js";
 import { ProviderError, type ProviderDef, type ToolDef } from "./types.js";
 
@@ -85,7 +86,7 @@ export class DibaMcpEngine {
         source,
         ok: r.ok,
         ms,
-        args: rawArgs,
+        args: summarizeForLog(rawArgs),
         error: r.error,
         result: r.ok ? JSON.stringify(r.result ?? null).slice(0, 2000) : undefined,
       });

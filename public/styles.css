@@ -87,6 +87,7 @@ a { color: var(--accent); }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
 .ltr { direction: ltr; unicode-bidi: isolate; display: inline-block; }
 code, .mono { font-family: var(--mono); font-size: .86em; }
+[hidden] { display: none !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
 /* ---------- boot ---------- */
@@ -304,6 +305,31 @@ pre.json .s { color: var(--accent); }
 pre.json .n { color: var(--saffron); }
 pre.json .b { color: var(--pomegranate); }
 .err-box { padding: 14px 18px; border-radius: var(--r-md); background: var(--pomegranate-soft); color: var(--text); border-inline-start: 3px solid var(--pomegranate); }
+
+/* ---------- media field ---------- */
+.media-box {
+  display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 14px; align-items: center;
+  padding: 12px; border: 1.5px dashed var(--line-strong); border-radius: var(--r-md);
+  background: var(--bg-sunken); transition: border-color .2s, background .2s;
+}
+.media-box.drag { border-color: var(--accent); background: var(--turquoise-soft); }
+.media-preview {
+  width: 88px; height: 88px; border-radius: var(--r-sm); display: grid; place-items: center;
+  background: var(--bg-raised); color: var(--text-faint); overflow: hidden;
+}
+.media-preview svg { width: 30px; height: 30px; }
+.media-preview.has-img { background: repeating-conic-gradient(var(--line) 0 25%, transparent 0 50%) 0 0 / 14px 14px; }
+.media-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.media-body { display: grid; gap: 6px; min-width: 0; }
+.media-row { display: flex; gap: 8px; align-items: center; }
+.media-row .input { flex: 1; min-width: 0; background: var(--bg-raised); }
+.media-row .input[readonly] { opacity: 1; color: var(--accent); font-weight: 500; }
+@media (max-width: 760px) {
+  .media-box { grid-template-columns: 64px minmax(0, 1fr); }
+  .media-preview { width: 64px; height: 64px; }
+  .media-row { flex-wrap: wrap; }
+  .media-row .input { flex-basis: 100%; }
+}
 
 /* ---------- logs table ---------- */
 .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }

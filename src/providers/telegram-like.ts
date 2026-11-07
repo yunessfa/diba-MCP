@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { request } from "../core/http.js";
+import { isUploadable, loadMedia, mediaField } from "../core/media.js";
+import { FormData } from "../core/net.js";
 import { defineTool, ProviderError, type ProviderContext, type ProviderDef } from "../core/types.js";
 
 /**
@@ -26,17 +28,37 @@ export function chatIdOf(ctx: ProviderContext, chatId?: string): string {
 }
 
 export function createTelegramLikeProvider(o: TelegramLikeOptions): ProviderDef {
-  async function call(ctx: ProviderContext, method: string, params: Record<string, unknown> = {}) {
+  async function call(ctx: ProviderContext, method: string, params: Record<string, unknown> = {}, form?: FormData) {
     const { token, baseUrl } = ctx.config;
     const clean = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== ""));
     const data = await request(`${baseUrl.replace(/\/+$/, "")}/bot${token}/${method}`, {
-      json: clean,
+      ...(form ? { form, timeoutMs: 120_000 } : { json: clean }),
       secrets: [token],
     });
     if (data && data.ok === false) {
       throw new ProviderError(`${o.nameFa}: ${data.description ?? "خطای ناشناخته"}`, data);
     }
     return data?.result ?? data;
+  }
+
+  /**
+   * ارسال رسانه: لینک و فایل انتخاب‌شده را خود سرور دانلود و به‌صورت multipart آپلود می‌کند
+   * (پیام‌رسان لازم نیست به لینک دسترسی داشته باشد)؛ file_id بدون آپلود فرستاده می‌شود.
+   */
+  async function sendMedia(
+    ctx: ProviderContext,
+    method: string,
+    field: string,
+    value: string,
+    params: Record<string, unknown>,
+    opts: { expect?: "image"; filename?: string } = {},
+  ) {
+    if (!isUploadable(value)) return call(ctx, method, { ...params, [field]: value });
+    const media = await loadMedia(value, opts);
+    const form = new FormData();
+    for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== "") form.append(k, String(v));
+    form.append(field, media.blob, media.filename);
+    return call(ctx, method, {}, form);
   }
 
   const chatId = z.string().optional().describe("Chat/user/channel id. If omitted, the default chat from settings is used.");
@@ -82,14 +104,30 @@ export function createTelegramLikeProvider(o: TelegramLikeOptions): ProviderDef 
       defineTool({
         name: `${p}_send_photo`,
         title: "ارسال عکس",
-        description: `Send a photo (public URL or file_id) via the ${o.name} bot, with optional caption.`,
+        description: `Send a photo via the ${o.name} bot, with optional caption.`,
         input: {
           chat_id: chatId,
-          photo: z.string().min(1).describe("Public image URL or an existing file_id"),
+          photo: mediaField("image", "The image"),
           caption: z.string().max(1024).optional().describe("Optional caption"),
+          reply_to_message_id: z.number().int().optional(),
         },
         annotations: { openWorldHint: true },
-        handler: (a, ctx) => call(ctx, "sendPhoto", { chat_id: chatIdOf(ctx, a.chat_id), photo: a.photo, caption: a.caption }),
+        handler: (a, ctx) =>
+          sendMedia(ctx, "sendPhoto", "photo", a.photo, { chat_id: chatIdOf(ctx, a.chat_id), caption: a.caption, reply_to_message_id: a.reply_to_message_id }, { expect: "image" }),
+      }),
+      defineTool({
+        name: `${p}_send_document`,
+        title: "ارسال فایل",
+        description: `Send any file (pdf, zip, video...) as a document via the ${o.name} bot, with optional caption. Max 20MB.`,
+        input: {
+          chat_id: chatId,
+          document: mediaField("file", "The file"),
+          caption: z.string().max(1024).optional().describe("Optional caption"),
+          filename: z.string().optional().describe("Override the file name shown in chat (extension matters)"),
+        },
+        annotations: { openWorldHint: true },
+        handler: (a, ctx) =>
+          sendMedia(ctx, "sendDocument", "document", a.document, { chat_id: chatIdOf(ctx, a.chat_id), caption: a.caption }, { filename: a.filename }),
       }),
       defineTool({
         name: `${p}_get_chat`,

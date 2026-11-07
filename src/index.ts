@@ -11,6 +11,7 @@
  */
 import { resolve } from "node:path";
 import { DibaMcpEngine, SERVER_VERSION } from "./core/engine.js";
+import { configureMedia } from "./core/media.js";
 import { configureProxy } from "./core/net.js";
 import type { ProviderDef } from "./core/types.js";
 import { createDibaMcpRouter, type RouterOptions } from "./http/router.js";
@@ -27,6 +28,7 @@ export interface CreateOptions {
 
 export function createDibaMcp(opts: CreateOptions = {}) {
   configureProxy(opts.env ?? process.env);
+  configureMedia(opts.env ?? process.env);
   let providers = [...builtinProviders, ...(opts.extraProviders ?? [])];
   if (opts.only) providers = providers.filter((p) => opts.only!.includes(p.id));
   const dataDir = resolve(opts.dataDir ?? process.env.DATA_DIR ?? "./data");

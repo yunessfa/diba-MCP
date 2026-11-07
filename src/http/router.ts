@@ -63,7 +63,7 @@ export function createDibaMcpRouter(engine: DibaMcpEngine, opts: RouterOptions =
     next();
   };
 
-  router.post("/mcp", mcpRate, express.json({ limit: "4mb" }), mcpAuth, async (req, res) => {
+  router.post("/mcp", mcpRate, express.json({ limit: "30mb" }), mcpAuth, async (req, res) => {
     const server = engine.createMcpServer();
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
     res.on("close", () => {
@@ -90,6 +90,8 @@ export function createDibaMcpRouter(engine: DibaMcpEngine, opts: RouterOptions =
 
   // ---------------- API داشبورد ----------------
   const api = express.Router();
+  // ابزارهای رسانه‌ای فایل انتخاب‌شده را به‌صورت data URL می‌فرستند
+  api.use("/tools", express.json({ limit: "30mb" }));
   api.use(express.json({ limit: "1mb" }));
 
   const sid = (req: Request) => parseCookie(req.headers.cookie ?? "")[COOKIE];

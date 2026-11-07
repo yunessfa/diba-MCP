@@ -9,5 +9,5 @@ export const soroush = createTelegramLikeProvider({
   defaultBaseUrl: "https://api.splus.ir",
   docsUrl: "https://soroushplus.com/p/documents/bot-platform",
   botfather: "splus.ir/botfather",
-  description: "ارسال پیام و عکس با Bot API رسمی سروش‌پلاس",
+  description: "ارسال پیام، عکس و فایل با Bot API رسمی سروش‌پلاس",
 });

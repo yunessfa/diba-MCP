@@ -22,7 +22,7 @@ diba-mcp
 ```
 
 > تا قبل از انتشار روی npm، از فایل آماده‌ی آخرین [Release](https://github.com/yunessfa/diba-MCP/releases) نصب کنید:
-> `npm i -g https://github.com/yunessfa/diba-MCP/releases/download/v0.2.0/diba-mcp-0.2.0.tgz`
+> `npm i -g https://github.com/yunessfa/diba-MCP/releases/download/v0.3.0/diba-mcp-0.3.0.tgz`
 
 **با Docker:**
 
@@ -112,11 +112,14 @@ test/
 
 | پیام‌رسان | ابزارها |
 |---|---|
-| بله | `bale_get_me` `bale_send_message` `bale_send_photo` `bale_get_chat` `bale_get_updates` |
-| سروش‌پلاس | `soroush_get_me` `soroush_send_message` `soroush_send_photo` `soroush_get_chat` `soroush_get_updates` |
-| ایتا | `eitaa_get_me` `eitaa_send_message` `eitaa_send_file` |
-| روبیکا | `rubika_get_me` `rubika_send_message` `rubika_send_location` `rubika_get_chat` `rubika_get_updates` |
+| بله | `bale_get_me` `bale_send_message` `bale_send_photo` `bale_send_document` `bale_get_chat` `bale_get_updates` |
+| سروش‌پلاس | `soroush_get_me` `soroush_send_message` `soroush_send_photo` `soroush_send_document` `soroush_get_chat` `soroush_get_updates` |
+| ایتا | `eitaa_get_me` `eitaa_send_message` `eitaa_send_photo` `eitaa_send_file` |
+| روبیکا | `rubika_get_me` `rubika_send_message` `rubika_send_photo` `rubika_send_file` `rubika_send_location` `rubika_get_chat` `rubika_get_updates` |
 | همه | `list_services` |
+
+**ارسال عکس و فایل:** ورودی هر ابزار رسانه‌ای می‌تواند لینک عمومی، فایل انتخاب‌شده از دستگاه (در داشبورد: دکمه، کشیدن و رها کردن، یا Ctrl+V)، یا `file_id` قبلی همان پیام‌رسان باشد. لینک‌ها را خود سرور دانلود و آپلود می‌کند، پس لازم نیست پیام‌رسان به آن لینک دسترسی داشته باشد. حداکثر حجم ۲۰ مگابایت.
+برای امنیت، دانلود از آدرس‌های داخلی (localhost، شبکه‌ی خصوصی، metadata ابری) مسدود است؛ اگر عمداً لازم دارید: `ALLOW_PRIVATE_MEDIA_URLS=true`.
 
 اگر برای سرویسی «چت پیش‌فرض» تعیین کنید، `chat_id` اختیاری می‌شود و مدل می‌تواند فقط با `text` پیام بفرستد.
 
@@ -150,7 +153,7 @@ app.use("/diba-mcp", dibaMcp.router());                  // داشبورد + /di
 await dibaMcp.engine.callTool("eitaa_send_message", { text: "سفارش جدید" }, "dashboard");
 ```
 
-تا وقتی روی npm منتشر نشده: `npm i https://github.com/yunessfa/diba-MCP/releases/download/v0.2.0/diba-mcp-0.2.0.tgz`
+تا وقتی روی npm منتشر نشده: `npm i https://github.com/yunessfa/diba-MCP/releases/download/v0.3.0/diba-mcp-0.3.0.tgz`
 
 ## اضافه کردن سرویس جدید
 
