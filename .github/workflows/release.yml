@@ -1,9 +1,10 @@
 name: Release
 
-# push به main  → ایمیج ghcr.io/yunessfa/diba-mcp:latest
-# تگ v1.2.3     → ایمیج :1.2.3 و :1.2
-#               + GitHub Release با فایل diba-mcp-1.2.3.tgz (نصب: npm i -g <لینک فایل>)
-#               + انتشار روی npm (اگر secret به اسم NPM_TOKEN تنظیم شده باشد)
+# push به main          → ایمیج ghcr.io/yunessfa/diba-mcp:latest
+# Run workflow (دستی)    → نسخه‌ی package.json منتشر می‌شود:
+#   یا push تگ vX.Y.Z      - ایمیج :X.Y.Z
+#                          - GitHub Release با فایل نصب diba-mcp-X.Y.Z.tgz
+#                          - انتشار روی npm (اگر secret به اسم NPM_TOKEN تنظیم شده باشد)
 
 on:
   push:
@@ -17,7 +18,28 @@ permissions:
   id-token: write
 
 jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      release: ${{ steps.v.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] || [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ "$GITHUB_REF" == refs/tags/v* ]] && [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $VERSION"; exit 1
+          fi
+
   image:
+    needs: meta
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,14 +50,13 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - id: meta
+      - id: docker_meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/diba-mcp
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ needs.meta.outputs.version }},enable=${{ needs.meta.outputs.release }}
             type=sha,format=short
           labels: |
             org.opencontainers.image.title=dibaMCP
@@ -45,16 +66,18 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.docker_meta.outputs.tags }}
+          labels: ${{ steps.docker_meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   package:
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: meta
+    if: needs.meta.outputs.release == 'true'
     runs-on: ubuntu-latest
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      VERSION: ${{ needs.meta.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -64,19 +87,17 @@ jobs:
       - run: npm ci
       - run: npm run typecheck && npm test
       - run: npm run build
-      - name: Check tag matches package version
-        run: |
-          VERSION="$(node -p "require('./package.json').version")"
-          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
-            echo "Tag $GITHUB_REF_NAME does not match package.json version $VERSION"; exit 1
-          fi
       - run: npm pack
-      - name: GitHub Release
+      - name: GitHub Release (creates the tag if needed)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" diba-mcp-*.tgz --title "dibaMCP $GITHUB_REF_NAME" --generate-notes \
-            || gh release upload "$GITHUB_REF_NAME" diba-mcp-*.tgz --clobber
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            gh release upload "v$VERSION" "diba-mcp-$VERSION.tgz" --clobber
+          else
+            gh release create "v$VERSION" "diba-mcp-$VERSION.tgz" --target "$GITHUB_SHA" \
+              --title "dibaMCP v$VERSION" --generate-notes
+          fi
       - name: Publish to npm
         if: env.NPM_TOKEN != ''
         env:
