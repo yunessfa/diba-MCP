@@ -1,4 +1,4 @@
-import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 
 export function hashPassword(password: string, salt = randomBytes(16).toString("hex")) {
   const hash = scryptSync(password, salt, 64).toString("hex");
@@ -17,46 +17,72 @@ export function safeEqual(a: string, b: string): boolean {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-/** نشست‌های داشبورد در حافظه (با ری‌استارت سرور پاک می‌شوند) */
-export class SessionStore {
-  private sessions = new Map<string, number>();
-  constructor(private ttlMs = 12 * 60 * 60 * 1000) {}
+/**
+ * نشست داشبورد به‌صورت کوکی امضاشده (HMAC) — بدون نگهداری در حافظه،
+ * پس با ری‌استارت سرور کسی بیرون نمی‌افتد.
+ * باطل کردن همه‌ی نشست‌ها: بالا بردن epoch (خروج یا تغییر رمز).
+ */
+export class SignedSessions {
+  constructor(
+    private secret: () => string,
+    private epoch: () => number,
+    private ttlMs = 12 * 60 * 60 * 1000,
+  ) {}
 
-  create(): string {
-    const id = randomBytes(32).toString("base64url");
-    this.sessions.set(id, Date.now() + this.ttlMs);
-    return id;
+  private sign(payload: string) {
+    return createHmac("sha256", this.secret()).update(payload).digest("base64url");
   }
 
-  valid(id?: string): boolean {
-    if (!id) return false;
-    const exp = this.sessions.get(id);
-    if (!exp) return false;
-    if (exp < Date.now()) {
-      this.sessions.delete(id);
+  create(now = Date.now()): string {
+    const payload = Buffer.from(JSON.stringify({ exp: now + this.ttlMs, e: this.epoch() })).toString("base64url");
+    return `${payload}.${this.sign(payload)}`;
+  }
+
+  valid(token?: string, now = Date.now()): boolean {
+    if (!token) return false;
+    const [payload, sig] = token.split(".");
+    if (!payload || !sig || !safeEqual(sig, this.sign(payload))) return false;
+    try {
+      const { exp, e } = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+      return typeof exp === "number" && exp > now && e === this.epoch();
+    } catch {
       return false;
     }
-    return true;
-  }
-
-  destroy(id?: string) {
-    if (id) this.sessions.delete(id);
   }
 }
 
-/** محدودکننده‌ی ساده برای تلاش‌های ورود */
+/** محدودکننده‌ی پنجره‌ی ثابت (برای ورود و اندپوینت MCP) */
 export class RateLimiter {
   private hits = new Map<string, { n: number; reset: number }>();
-  constructor(private max = 8, private windowMs = 10 * 60 * 1000) {}
+  private lastSweep = 0;
 
-  allow(key: string): boolean {
-    const now = Date.now();
+  constructor(
+    readonly max = 8,
+    readonly windowMs = 10 * 60 * 1000,
+  ) {}
+
+  /** true یعنی اجازه دارد */
+  allow(key: string, now = Date.now()): boolean {
+    this.sweep(now);
     const h = this.hits.get(key);
-    if (!h || h.reset < now) {
+    if (!h || h.reset <= now) {
       this.hits.set(key, { n: 1, reset: now + this.windowMs });
       return true;
     }
     h.n++;
     return h.n <= this.max;
+  }
+
+  /** چند ثانیه تا آزاد شدن */
+  retryAfter(key: string, now = Date.now()): number {
+    const h = this.hits.get(key);
+    return h ? Math.max(1, Math.ceil((h.reset - now) / 1000)) : 0;
+  }
+
+  /** پاک کردن کلیدهای منقضی تا حافظه بی‌نهایت بزرگ نشود */
+  private sweep(now: number) {
+    if (now - this.lastSweep < this.windowMs) return;
+    this.lastSweep = now;
+    for (const [k, v] of this.hits) if (v.reset <= now) this.hits.delete(k);
   }
 }

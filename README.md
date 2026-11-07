@@ -1,4 +1,4 @@
-# ایران MCP
+# dibaMCP
 
 سرور MCP برای وصل کردن سرویس‌های ایرانی به مدل‌های هوش مصنوعی (Claude، Cursor و هر کلاینت MCP دیگر)، همراه با داشبورد فارسی برای مدیریت.
 
@@ -19,7 +19,7 @@ npm run dev          # داشبورد: http://127.0.0.1:3790  —  MCP: http://1
 | `npm run dev` | اجرای توسعه با ری‌لود خودکار |
 | `npm run build` و `npm start` | ساخت و اجرای نسخه‌ی production |
 | `npm run stdio` | اجرا در حالت stdio (برای Claude Desktop) |
-| `npm test` | تست سرتاسری با API جعلی پیام‌رسان‌ها |
+| `npm test` | همه‌ی تست‌ها (واحد + سرتاسری) |
 | `npm run typecheck` | بررسی تایپ‌ها |
 | `npm run netcheck` | بررسی دسترسی این سرور به API پیام‌رسان‌ها |
 
@@ -32,8 +32,10 @@ src/
 │  ├─ engine.ts       # قلب پروژه: اجرای ابزار، اعتبارسنجی، لاگ، ساخت McpServer
 │  ├─ store.ts        # تنظیمات در data/config.json (env اولویت دارد)
 │  ├─ http.ts         # fetch با timeout و پیام خطای فارسی، پاک کردن توکن از خطاها
-│  ├─ auth.ts         # رمز ادمین (scrypt)، نشست‌ها، محدودیت تلاش ورود
-│  └─ logger.ts       # لاگ فراخوانی‌ها در حافظه
+│  ├─ auth.ts         # رمز ادمین (scrypt)، نشست امضاشده (HMAC)، محدودکننده‌ی نرخ
+│  ├─ net.ts          # همه‌ی درخواست‌های بیرونی + پراکسی SOCKS/HTTP
+│  ├─ netcheck.ts     # تست دسترسی سرور به API پیام‌رسان‌ها
+│  └─ logger.ts       # لاگ فراخوانی‌ها: حافظه + فایل روزانه در data/logs
 ├─ providers/
 │  ├─ telegram-like.ts  # factory مشترک بله و سروش‌پلاس (Bot API شبیه تلگرام)
 │  ├─ bale.ts  soroush.ts  eitaa.ts  rubika.ts
@@ -43,7 +45,9 @@ src/
 ├─ main.ts            # اجرای مستقل HTTP
 └─ stdio.ts           # اجرای stdio
 public/               # داشبورد (HTML/CSS/JS ساده، بدون build)
-test/e2e.ts
+test/
+├─ unit/             # تست‌های واحد (auth، store، net، engine)
+└─ e2e.ts            # تست سرتاسری با کلاینت واقعی MCP
 ```
 
 ## ابزارها
@@ -60,23 +64,35 @@ test/e2e.ts
 
 **محدودیت‌ها:** ایتایار فقط به کانال/گروه ارسال می‌کند و دریافت پیام ندارد. `get_updates` در بله و سروش وقتی webhook تنظیم شده باشد کار نمی‌کند.
 
+## تنظیمات امنیت و محدودیت‌ها
+
+| متغیر | پیش‌فرض | کار |
+|---|---|---|
+| `MCP_RATE_LIMIT` | `120` | حداکثر درخواست به `/mcp` در دقیقه برای هر IP |
+| `MCP_WRITE_LIMIT` | `30` | حداکثر فراخوانی ابزارهای ارسالی (پیام، عکس، ...) از طرف مدل در دقیقه — جلوی ارسال انبوه ناخواسته را می‌گیرد |
+| `LOG_RETENTION_DAYS` | `14` | فایل‌های لاگ قدیمی‌تر پاک می‌شوند |
+| `LOG_TO_FILE` | `true` | `false` = لاگ فقط در حافظه |
+| `UPSTREAM_TIMEOUT_MS` | `20000` | سقف انتظار برای جواب API پیام‌رسان‌ها |
+
+نشست داشبورد کوکی امضاشده است و با ری‌استارت سرور از بین نمی‌رود. «خروج» همه‌ی نشست‌ها را باطل می‌کند.
+
 ## الحاق به پروژه‌ی دیگر
 
 ```js
 import express from "express";
-import { createIranMcp } from "iran-mcp";   // یا مسیر نسبی به پوشه‌ی پروژه
+import { createDibaMcp } from "diba-mcp";   // یا مسیر نسبی به پوشه‌ی پروژه
 
 const app = express();
-const iranMcp = createIranMcp({ dataDir: "./data/iran-mcp" });
+const dibaMcp = createDibaMcp({ dataDir: "./data/diba-mcp" });
 
-app.use("/iran-mcp", iranMcp.router());                  // داشبورد + /iran-mcp/mcp
-// app.use("/iran-mcp", iranMcp.router({ dashboard: false }));  // فقط اندپوینت MCP
+app.use("/diba-mcp", dibaMcp.router());                  // داشبورد + /diba-mcp/mcp
+// app.use("/diba-mcp", dibaMcp.router({ dashboard: false }));  // فقط اندپوینت MCP
 
 // استفاده‌ی مستقیم از کد، بدون مدل:
-await iranMcp.engine.callTool("eitaa_send_message", { text: "سفارش جدید" }, "dashboard");
+await dibaMcp.engine.callTool("eitaa_send_message", { text: "سفارش جدید" }, "dashboard");
 ```
 
-تا وقتی روی npm منتشر نشده، در package.json پروژه‌ی میزبان: `"iran-mcp": "file:../iran-mcp"` و یک بار `npm run build` در همین پروژه.
+تا وقتی روی npm منتشر نشده، در package.json پروژه‌ی میزبان: `"diba-mcp": "file:../diba-mcp"` و یک بار `npm run build` در همین پروژه.
 
 ## اضافه کردن سرویس جدید
 
@@ -109,14 +125,14 @@ export const kavenegar: ProviderDef = {
 ```bash
 cp .env.example .env          # ADMIN_PASSWORD را عوض کنید
 docker compose up -d --build
-docker compose exec iran-mcp node dist/netcheck.js   # آیا سرور به APIها می‌رسد؟
+docker compose exec diba-mcp node dist/netcheck.js   # آیا سرور به APIها می‌رسد؟
 ```
 
 راهنمای کامل قدم‌به‌قدم (سرور خارج از ایران، تونل SSH، HTTPS با Caddy): **[DEPLOY.md](DEPLOY.md)**
 
 - **سرور خارج از ایران:** بعضی APIهای ایرانی IP خارجی را محدود می‌کنند. با `npm run netcheck` بررسی کنید؛ اگر بسته بود `SOCKS_PROXY` یا `HTTPS_PROXY` را به یک سرور داخل ایران بدهید. همه‌ی درخواست‌های بیرونی از `src/core/net.ts` رد می‌شوند.
 - داشبورد را روی اینترنت فقط با HTTPS باز کنید (پروفایل `https` در compose، با `TRUST_PROXY=1`).
-- تنظیمات و توکن‌ها در volume `iran-mcp-data` (فایل `config.json` با دسترسی 600) می‌مانند. هیچ‌وقت `.env` یا `data/` را commit نکنید.
+- تنظیمات و توکن‌ها در volume `diba-mcp-data` (فایل `config.json` با دسترسی 600) می‌مانند. هیچ‌وقت `.env` یا `data/` را commit نکنید.
 
 ## نقشه‌ی راه
 

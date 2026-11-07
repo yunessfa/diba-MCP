@@ -3,10 +3,10 @@
 # راهنمای کامل:    DEPLOY.md
 
 services:
-  iran-mcp:
+  diba-mcp:
     build: .
-    image: iran-mcp:latest
-    container_name: iran-mcp
+    image: diba-mcp:latest
+    container_name: diba-mcp
     restart: unless-stopped
     env_file: .env
     environment:
@@ -18,7 +18,7 @@ services:
       # برای تست سریع با IP عمومی در .env بگذارید: BIND_ADDR=0.0.0.0
       - "${BIND_ADDR:-127.0.0.1}:${PUBLIC_PORT:-3790}:3790"
     volumes:
-      - iran-mcp-data:/app/data
+      - diba-mcp-data:/app/data
     extra_hosts:
       # برای رسیدن به تونل SOCKS که روی خود سرور اجرا شده
       - "host.docker.internal:host-gateway"
@@ -26,9 +26,9 @@ services:
   caddy:
     image: caddy:2-alpine
     profiles: ["https"]
-    container_name: iran-mcp-caddy
+    container_name: diba-mcp-caddy
     restart: unless-stopped
-    depends_on: [iran-mcp]
+    depends_on: [diba-mcp]
     ports:
       - "80:80"
       - "443:443"
@@ -40,6 +40,6 @@ services:
       - caddy-config:/config
 
 volumes:
-  iran-mcp-data:
+  diba-mcp-data:
   caddy-data:
   caddy-config:

@@ -1,6 +1,6 @@
 /**
  * تست سرتاسری: یک سرور جعلی به‌جای API پیام‌رسان‌ها بالا می‌آورد،
- * سرور iran-mcp را اجرا می‌کند و با کلاینت واقعی MCP ابزارها را صدا می‌زند.
+ * سرور diba-mcp را اجرا می‌کند و با کلاینت واقعی MCP ابزارها را صدا می‌زند.
  *   npm test
  */
 import assert from "node:assert/strict";
@@ -11,7 +11,7 @@ import type { AddressInfo } from "node:net";
 import express from "express";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { createIranMcp } from "../src/index.js";
+import { createDibaMcp } from "../src/index.js";
 
 const listen = (app: express.Express) =>
   new Promise<{ url: string; close: () => void }>((ok) => {
@@ -39,19 +39,19 @@ mock.post("/rubika/:token/:method", express.json(), (req, res) => {
 });
 const upstream = await listen(mock);
 
-// ---------- iran-mcp ----------
-const dataDir = mkdtempSync(join(tmpdir(), "iran-mcp-test-"));
-const iranMcp = createIranMcp({ dataDir, env: {} });
-const { store } = iranMcp.engine;
+// ---------- diba-mcp ----------
+const dataDir = mkdtempSync(join(tmpdir(), "diba-mcp-test-"));
+const dibaMcp = createDibaMcp({ dataDir, env: {} });
+const { store } = dibaMcp.engine;
 store.update("bale", { enabled: true, values: { token: "GOOD:TOKEN", baseUrl: `${upstream.url}/tg`, defaultChatId: "555" } });
 store.update("soroush", { enabled: true, values: { token: "BAD", baseUrl: `${upstream.url}/tg` } });
 store.update("eitaa", { enabled: true, values: { token: "e-tok", baseUrl: `${upstream.url}/eitaa`, defaultChatId: "mychannel" } });
 store.update("rubika", { enabled: true, values: { token: "r-tok", baseUrl: `${upstream.url}/rubika` } });
 
 const app = express();
-app.use("/iran-mcp", iranMcp.router()); // مثل الحاق به پروژه‌ی میزبان، با پیشوند
+app.use("/diba-mcp", dibaMcp.router()); // مثل الحاق به پروژه‌ی میزبان، با پیشوند
 const srv = await listen(app);
-const mcpUrl = new URL(`${srv.url}/iran-mcp/mcp`);
+const mcpUrl = new URL(`${srv.url}/diba-mcp/mcp`);
 
 let passed = 0;
 const step = async (name: string, fn: () => Promise<void>) => {
@@ -124,15 +124,15 @@ try {
   });
 
   await step("لاگ ثبت شده", async () => {
-    const logs = iranMcp.engine.logger.list();
+    const logs = dibaMcp.engine.logger.list();
     assert.ok(logs.length >= 5);
     assert.ok(logs.every((l) => !JSON.stringify(l).includes("GOOD:TOKEN")));
   });
 
   await step("داشبورد: بدون ورود ← 401، صفحه در دسترس", async () => {
-    const r = await fetch(`${srv.url}/iran-mcp/api/providers`);
+    const r = await fetch(`${srv.url}/diba-mcp/api/providers`);
     assert.equal(r.status, 401);
-    const page = await fetch(`${srv.url}/iran-mcp/`);
+    const page = await fetch(`${srv.url}/diba-mcp/`);
     assert.equal(page.status, 200);
     assert.match(await page.text(), /<html/);
   });

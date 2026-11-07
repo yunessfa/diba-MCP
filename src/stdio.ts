@@ -5,11 +5,11 @@
  */
 import { existsSync } from "node:fs";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { createIranMcp } from "./index.js";
+import { createDibaMcp } from "./index.js";
 
 if (existsSync(".env")) process.loadEnvFile(".env");
 
-const iranMcp = createIranMcp();
-const server = iranMcp.createMcpServer();
+const dibaMcp = createDibaMcp();
+const server = dibaMcp.createMcpServer();
 await server.connect(new StdioServerTransport());
-console.error(`[iran-mcp] stdio آماده است — ${iranMcp.engine.activeTools().length} ابزار فعال`);
+console.error(`[diba-mcp] stdio آماده است — ${dibaMcp.engine.activeTools().length} ابزار فعال`);

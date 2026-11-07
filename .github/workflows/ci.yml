@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm audit --omit=dev --audit-level=high
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t diba-mcp:ci .
+      - name: Smoke test
+        run: |
+          docker run -d --name diba -e ADMIN_PASSWORD=ci-password -p 3790:3790 diba-mcp:ci
+          for i in $(seq 1 20); do curl -fs http://127.0.0.1:3790/healthz && break; sleep 1; done
+          curl -fs http://127.0.0.1:3790/healthz
+          docker logs diba

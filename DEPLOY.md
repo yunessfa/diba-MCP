@@ -18,14 +18,14 @@ docker compose version     # باید نسخه را نشان دهد
 
 ```bash
 # با Personal Access Token (Settings → Developer settings → Fine-grained token، فقط Read روی همین ریپو)
-git clone https://<TOKEN>@github.com/yunessfa/iran-mcp.git
+git clone https://<TOKEN>@github.com/yunessfa/diba-mcp.git
 
 # یا با کلید SSH سرور که در گیت‌هاب ثبت شده باشد
-git clone git@github.com:yunessfa/iran-mcp.git
+git clone git@github.com:yunessfa/diba-mcp.git
 ```
 
 ```bash
-cd iran-mcp
+cd diba-mcp
 cp .env.example .env
 nano .env        # حداقل ADMIN_PASSWORD را عوض کنید
 ```
@@ -41,7 +41,7 @@ docker compose logs -f       # دیدن لاگ (Ctrl+C برای خروج)
 ## ۴. تست اصلی: دسترسی شبکه ✅/❌
 
 ```bash
-docker compose exec iran-mcp node dist/netcheck.js
+docker compose exec diba-mcp node dist/netcheck.js
 ```
 
 خروجی برای هر پیام‌رسان یکی از این‌هاست:
@@ -104,7 +104,7 @@ NO_PROXY=localhost,127.0.0.1
 
 ```bash
 docker compose up -d                                   # اعمال env جدید
-docker compose exec iran-mcp node dist/netcheck.js     # «IP خروجی» باید IP سرور ایران باشد
+docker compose exec diba-mcp node dist/netcheck.js     # «IP خروجی» باید IP سرور ایران باشد
 ```
 
 **دائمی کردن تونل** (بعد از ری‌استارت هم برقرار بماند):
@@ -113,9 +113,9 @@ docker compose exec iran-mcp node dist/netcheck.js     # «IP خروجی» با�
 apt install -y autossh
 ssh-copy-id user@IRAN_SERVER_IP        # ورود بدون رمز
 
-cat > /etc/systemd/system/iran-tunnel.service <<'EOF'
+cat > /etc/systemd/system/diba-tunnel.service <<'EOF'
 [Unit]
-Description=SOCKS tunnel to Iran server for iran-mcp
+Description=SOCKS tunnel to Iran server for diba-mcp
 After=network-online.target docker.service
 Wants=network-online.target
 
@@ -129,7 +129,7 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-systemctl daemon-reload && systemctl enable --now iran-tunnel
+systemctl daemon-reload && systemctl enable --now diba-tunnel
 ```
 
 ### روش ۲: پراکسی HTTP روی سرور ایران
@@ -165,12 +165,12 @@ NO_PROXY=localhost,127.0.0.1
 
 | کار | دستور |
 |---|---|
-| لاگ زنده | `docker compose logs -f iran-mcp` |
-| ری‌استارت | `docker compose restart iran-mcp` |
+| لاگ زنده | `docker compose logs -f diba-mcp` |
+| ری‌استارت | `docker compose restart diba-mcp` |
 | آپدیت از گیت | `git pull && docker compose up -d --build` |
 | توقف | `docker compose down` (داده‌ها در volume می‌مانند) |
-| بکاپ تنظیمات | `docker compose cp iran-mcp:/app/data/config.json ./backup-config.json` |
-| تست شبکه | `docker compose exec iran-mcp node dist/netcheck.js` |
+| بکاپ تنظیمات | `docker compose cp diba-mcp:/app/data/config.json ./backup-config.json` |
+| تست شبکه | `docker compose exec diba-mcp node dist/netcheck.js` |
 
 **فراموشی رمز داشبورد:** `ADMIN_PASSWORD` در `.env` همیشه اولویت دارد؛ عوضش کنید و `docker compose up -d`.
 

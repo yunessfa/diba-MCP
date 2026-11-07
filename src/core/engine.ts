@@ -1,6 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { redact } from "./http.js";
+import { join } from "node:path";
+import { RateLimiter } from "./auth.js";
 import { CallLogger } from "./logger.js";
 import { ConfigStore, envKey } from "./store.js";
 import { ProviderError, type ProviderDef, type ToolDef } from "./types.js";
@@ -8,7 +10,7 @@ import { ProviderError, type ProviderDef, type ToolDef } from "./types.js";
 // پیام‌های خطای اعتبارسنجی به فارسی
 z.config(z.locales.fa());
 
-export const SERVER_NAME = "iran-mcp";
+export const SERVER_NAME = "diba-mcp";
 export const SERVER_VERSION = "0.1.0";
 
 export interface EngineOptions {
@@ -29,14 +31,22 @@ export interface CallResult {
  * قلب پروژه: نگهداری سرویس‌ها، تنظیمات، لاگ و ساخت سرور MCP.
  * هم نسخه‌ی مستقل (main.ts) و هم پروژه‌ی میزبان از همین کلاس استفاده می‌کنند.
  */
-export class IranMcpEngine {
+export class DibaMcpEngine {
   readonly store: ConfigStore;
-  readonly logger = new CallLogger();
+  readonly logger: CallLogger;
   readonly providers: ProviderDef[];
+  /** سقف فراخوانی ابزارهای «نوشتنی» (ارسال پیام و ...) از طرف مدل در دقیقه */
+  private writeLimiter: RateLimiter;
   private toolIndex = new Map<string, { tool: ToolDef<any>; provider: ProviderDef }>();
 
   constructor(opts: EngineOptions) {
-    this.store = new ConfigStore(opts.dataDir, opts.env);
+    const env = opts.env ?? process.env;
+    this.store = new ConfigStore(opts.dataDir, env);
+    this.logger = new CallLogger({
+      dir: env.LOG_TO_FILE === "false" ? undefined : join(opts.dataDir, "logs"),
+      retentionDays: Number(env.LOG_RETENTION_DAYS) || 14,
+    });
+    this.writeLimiter = new RateLimiter(Math.max(1, Number(env.MCP_WRITE_LIMIT) || 30), 60_000);
     this.providers = opts.providers;
     for (const p of this.providers) {
       for (const t of p.tools) {
@@ -79,6 +89,13 @@ export class IranMcpEngine {
     if (!this.store.isEnabled(provider)) return finish({ ok: false, error: `سرویس ${provider.nameFa} غیرفعال است` });
     const missing = this.store.missingFields(provider);
     if (missing.length) return finish({ ok: false, error: `تنظیمات ${provider.nameFa} کامل نیست: ${missing.join("، ")}` });
+
+    if (source === "mcp" && !tool.annotations?.readOnlyHint && !this.writeLimiter.allow("mcp")) {
+      return finish({
+        ok: false,
+        error: `محدودیت ارسال: حداکثر ${this.writeLimiter.max} فراخوانی ارسالی در دقیقه. ${this.writeLimiter.retryAfter("mcp")} ثانیه دیگر دوباره امتحان کنید.`,
+      });
+    }
 
     const parsed = z.object(tool.input).safeParse(rawArgs ?? {});
     if (!parsed.success) {

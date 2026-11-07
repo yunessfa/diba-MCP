@@ -1,15 +1,15 @@
 /**
  * تست دسترسی شبکه از همین سرور به API پیام‌رسان‌ها:
  *   npm run netcheck                                  (توسعه)
- *   docker compose exec iran-mcp node dist/netcheck.js (داخل داکر)
+ *   docker compose exec diba-mcp node dist/netcheck.js (داخل داکر)
  */
 import { existsSync } from "node:fs";
 import { runNetcheck } from "./core/netcheck.js";
-import { createIranMcp } from "./index.js";
+import { createDibaMcp } from "./index.js";
 
 if (existsSync(".env")) process.loadEnvFile(".env");
 
-const { engine } = createIranMcp();
+const { engine } = createDibaMcp();
 const r = await runNetcheck(engine);
 
 const via = r.proxy.type === "direct" ? "مستقیم (بدون پراکسی)" : `${r.proxy.type} → ${r.proxy.target}`;

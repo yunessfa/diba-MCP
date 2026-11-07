@@ -1,7 +1,7 @@
 import { describeNetError, FormData, netFetch } from "./net.js";
 import { ProviderError } from "./types.js";
 
-const DEFAULT_TIMEOUT = 20_000;
+const DEFAULT_TIMEOUT = Number(process.env.UPSTREAM_TIMEOUT_MS) || 20_000;
 
 /** توکن‌ها را از متن خطا/لاگ پاک می‌کند */
 export function redact(text: string, secrets: string[]): string {

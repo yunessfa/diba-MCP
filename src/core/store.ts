@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ProviderDef } from "./types.js";
 
@@ -12,6 +12,10 @@ export interface StoredConfig {
   version: 1;
   mcpToken: string;
   admin?: { salt: string; hash: string };
+  /** کلید امضای کوکی نشست داشبورد */
+  sessionSecret: string;
+  /** با هر خروج یا تغییر رمز زیاد می‌شود و همه‌ی نشست‌های قبلی باطل می‌شوند */
+  sessionEpoch: number;
   providers: Record<string, ProviderState>;
 }
 
@@ -36,18 +40,34 @@ export class ConfigStore {
   }
 
   private load(): StoredConfig {
+    const defaults = (): StoredConfig => ({
+      version: 1,
+      mcpToken: newToken(),
+      sessionSecret: randomBytes(32).toString("base64url"),
+      sessionEpoch: 0,
+      providers: {},
+    });
     if (existsSync(this.file)) {
       try {
         const parsed = JSON.parse(readFileSync(this.file, "utf8"));
-        return { version: 1, providers: {}, mcpToken: "", ...parsed };
+        const merged: StoredConfig = { ...defaults(), ...parsed };
+        if (!merged.mcpToken) merged.mcpToken = newToken();
+        // فایل‌های نسخه‌ی قبل این فیلدها را نداشتند
+        if (!parsed.sessionSecret || !parsed.mcpToken) {
+          this.data = merged;
+          this.persist();
+        }
+        return merged;
       } catch (err) {
-        console.error("[iran-mcp] config.json خراب است؛ یک فایل جدید ساخته می‌شود", err);
+        // فایل خراب را دور نمی‌ریزیم؛ کنارش نگه می‌داریم
+        const backup = `${this.file}.corrupt-${Date.now()}`;
+        copyFileSync(this.file, backup);
+        console.error(`[diba-mcp] config.json خراب بود؛ نسخه‌ی خراب در ${backup} ذخیره شد و فایل تازه ساخته شد`, err);
       }
     }
-    const fresh: StoredConfig = { version: 1, mcpToken: newToken(), providers: {} };
-    this.data = fresh;
+    this.data = defaults();
     this.persist();
-    return fresh;
+    return this.data;
   }
 
   private persist() {
@@ -75,6 +95,20 @@ export class ConfigStore {
   }
   setAdmin(admin: { salt: string; hash: string }) {
     this.data.admin = admin;
+    this.data.sessionEpoch++;
+    this.persist();
+  }
+
+  // ---------- نشست‌ها ----------
+  get sessionSecret(): string {
+    return this.data.sessionSecret;
+  }
+  get sessionEpoch(): number {
+    return this.data.sessionEpoch;
+  }
+  /** همه‌ی نشست‌های داشبورد را باطل می‌کند */
+  bumpSessionEpoch() {
+    this.data.sessionEpoch++;
     this.persist();
   }
 
@@ -129,5 +163,5 @@ export class ConfigStore {
 }
 
 export function newToken(): string {
-  return "imcp_" + randomBytes(24).toString("base64url");
+  return "dmcp_" + randomBytes(24).toString("base64url");
 }

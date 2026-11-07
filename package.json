@@ -1,5 +1,5 @@
 {
-  "name": "iran-mcp",
+  "name": "diba-mcp",
   "version": "0.1.0",
   "description": "MCP server for Iranian services (Bale, Eitaa, Rubika, Soroush Plus) with a Persian dashboard",
   "main": "dist/index.js",
@@ -10,8 +10,10 @@
     "start": "node dist/main.js",
     "start:stdio": "node dist/stdio.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx test/e2e.ts",
-    "netcheck": "tsx src/netcheck.ts"
+    "test": "npm run test:unit && npm run test:e2e",
+    "netcheck": "tsx src/netcheck.ts",
+    "test:unit": "tsx --test \"test/unit/**/*.test.ts\"",
+    "test:e2e": "tsx test/e2e.ts"
   },
   "keywords": [
     "mcp",

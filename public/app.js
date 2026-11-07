@@ -1,4 +1,4 @@
-// ایران MCP — داشبورد (بدون فریم‌ورک)
+// dibaMCP — داشبورد (بدون فریم‌ورک)
 const $app = document.getElementById("app");
 const state = { providers: [], overview: null, logs: [], logFilter: { ok: "all", provider: "" }, openProv: null, timer: null };
 
@@ -102,7 +102,7 @@ function renderAuth(needsSetup) {
   <div class="auth">
     <div class="auth-art">${switchboardArt()}</div>
     <div class="auth-form">
-      <div class="brand" style="padding:0"><span class="brand-mark"></span><div><b>ایران MCP</b><small>اتصال پیام‌رسان‌های ایرانی به هوش مصنوعی</small></div></div>
+      <div class="brand" style="padding:0"><span class="brand-mark"></span><div><b>dibaMCP</b><small>اتصال پیام‌رسان‌های ایرانی به هوش مصنوعی</small></div></div>
       ${needsSetup ? `
         <h1>راه‌اندازی اولیه</h1>
         <p>کد شش‌حرفی‌ای که هنگام اجرای سرور در کنسول چاپ شد را وارد کنید و یک رمز برای داشبورد بسازید.</p>
@@ -145,7 +145,7 @@ function renderShell() {
   $app.innerHTML = `
   <div class="shell">
     <aside class="side">
-      <div class="brand"><span class="brand-mark"></span><div><b>ایران MCP</b><small id="ver"></small></div></div>
+      <div class="brand"><span class="brand-mark"></span><div><b>dibaMCP</b><small id="ver"></small></div></div>
       <nav class="nav" aria-label="بخش‌ها">
         ${pages.map((p) => `<a href="#/${p.id}" data-page="${p.id}">${icons[p.id]}<span>${p.title}</span></a>`).join("")}
       </nav>
@@ -160,7 +160,7 @@ function renderShell() {
     const cur = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
     const next = cur === "light" ? "dark" : "light";
     document.documentElement.dataset.theme = next;
-    try { localStorage.setItem("imcp-theme", next); } catch {}
+    try { localStorage.setItem("dmcp-theme", next); } catch {}
   };
   document.getElementById("logout").onclick = async () => { await api("auth/logout", { body: {} }); boot(); };
 }
@@ -169,7 +169,7 @@ async function render() {
   clearInterval(state.timer);
   const { page, q } = route();
   document.querySelectorAll(".nav a").forEach((a) => (a.dataset.page === page ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
-  document.title = `${pages.find((p) => p.id === page).title} — ایران MCP`;
+  document.title = `${pages.find((p) => p.id === page).title} — dibaMCP`;
   const main = document.getElementById("main");
   try {
     await ({ overview: pageOverview, providers: pageProviders, playground: pagePlayground, logs: pageLogs, connect: pageConnect })[page](main, q);
@@ -471,7 +471,7 @@ async function pagePlayground(main, q) {
 // ---------------------------------------------------------------- logs
 async function pageLogs(main) {
   if (!state.providers.length) state.providers = await api("providers");
-  main.innerHTML = `${head("گزارش فراخوانی‌ها", "سیصد فراخوانی آخر، چه از طرف مدل و چه از داشبورد. با ری‌استارت سرور پاک می‌شود.",
+  main.innerHTML = `${head("گزارش فراخوانی‌ها", "سیصد فراخوانی آخر، چه از طرف مدل و چه از داشبورد. همه‌ی فراخوانی‌ها در پوشه‌ی data/logs هم ذخیره می‌شوند.",
     `<div class="toolbar" style="margin:0">
       <button class="btn btn-icon" id="reload" aria-label="به‌روزرسانی">${icons.refresh}</button>
       <button class="btn btn-quiet btn-danger" id="clear">پاک کردن گزارش‌ها</button></div>`)}
@@ -517,7 +517,7 @@ async function pageLogs(main) {
   document.getElementById("pf").onchange = (e) => { state.logFilter.provider = e.target.value; draw(); };
   document.getElementById("reload").onclick = (e) => busy(e.currentTarget, load);
   document.getElementById("clear").onclick = async () => {
-    if (!confirm("همه‌ی گزارش‌ها پاک شود؟")) return;
+    if (!confirm("همه‌ی گزارش‌ها، از جمله فایل‌های ذخیره‌شده، پاک شود؟")) return;
     await api("logs", { method: "DELETE" });
     await load();
     toast("گزارش‌ها پاک شد");
@@ -530,16 +530,16 @@ async function pageConnect(main) {
   const base = location.origin + location.pathname.replace(/[^/]*$/, "");
   const url = base + "mcp";
   const snippets = {
-    "Claude Code": { lang: "bash", code: `claude mcp add --transport http iran-mcp ${url} \\\n  --header "Authorization: Bearer ${c.token}"` },
-    "Cursor / کلاینت‌های JSON": { lang: "json", code: JSON.stringify({ mcpServers: { "iran-mcp": { url, headers: { Authorization: `Bearer ${c.token}` } } } }, null, 2) },
+    "Claude Code": { lang: "bash", code: `claude mcp add --transport http diba-mcp ${url} \\\n  --header "Authorization: Bearer ${c.token}"` },
+    "Cursor / کلاینت‌های JSON": { lang: "json", code: JSON.stringify({ mcpServers: { "diba-mcp": { url, headers: { Authorization: `Bearer ${c.token}` } } } }, null, 2) },
     "Claude Desktop (stdio)": {
       lang: "json",
-      code: JSON.stringify({ mcpServers: { "iran-mcp": { command: "node", args: ["/path/to/iran-mcp/dist/stdio.js"], env: { DATA_DIR: "/path/to/iran-mcp/data" } } } }, null, 2),
+      code: JSON.stringify({ mcpServers: { "diba-mcp": { command: "node", args: ["/path/to/diba-mcp/dist/stdio.js"], env: { DATA_DIR: "/path/to/diba-mcp/data" } } } }, null, 2),
       note: "در حالت stdio سرور روی همان کامپیوتر اجرا می‌شود و تنظیمات را از پوشه‌ی data می‌خواند؛ توکن MCP لازم نیست. مسیرها را با مسیر واقعی پروژه عوض کنید.",
     },
     "الحاق به پروژه‌ی Express": {
       lang: "js",
-      code: `import express from "express";\nimport { createIranMcp } from "iran-mcp";\n\nconst app = express();\nconst iranMcp = createIranMcp({ dataDir: "./data/iran-mcp" });\n\n// داشبورد در /iran-mcp/ و اندپوینت در /iran-mcp/mcp\napp.use("/iran-mcp", iranMcp.router());\n\n// یا فراخوانی مستقیم از کد خودتان\nawait iranMcp.engine.callTool("bale_send_message", { text: "سفارش جدید ثبت شد" }, "dashboard");`,
+      code: `import express from "express";\nimport { createDibaMcp } from "diba-mcp";\n\nconst app = express();\nconst dibaMcp = createDibaMcp({ dataDir: "./data/diba-mcp" });\n\n// داشبورد در /diba-mcp/ و اندپوینت در /diba-mcp/mcp\napp.use("/diba-mcp", dibaMcp.router());\n\n// یا فراخوانی مستقیم از کد خودتان\nawait dibaMcp.engine.callTool("bale_send_message", { text: "سفارش جدید ثبت شد" }, "dashboard");`,
     },
     "تست با curl": {
       lang: "bash",
@@ -595,7 +595,7 @@ async function boot() {
   clearInterval(state.timer);
   let s;
   try { s = await api("auth/status"); }
-  catch { $app.innerHTML = `<div class="boot"><div class="err-box">به سرور وصل نشد. مطمئن شوید iran-mcp در حال اجراست و صفحه را دوباره باز کنید.</div></div>`; return; }
+  catch { $app.innerHTML = `<div class="boot"><div class="err-box">به سرور وصل نشد. مطمئن شوید diba-mcp در حال اجراست و صفحه را دوباره باز کنید.</div></div>`; return; }
   if (!s.authenticated) return renderAuth(s.needsSetup);
   renderShell();
   document.getElementById("ver").textContent = `نسخه ${s.version}`;

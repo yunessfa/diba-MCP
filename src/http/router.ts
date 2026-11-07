@@ -2,8 +2,8 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
-import { hashPassword, RateLimiter, safeEqual, SessionStore, verifyPassword } from "../core/auth.js";
-import { SERVER_VERSION, type IranMcpEngine } from "../core/engine.js";
+import { hashPassword, RateLimiter, safeEqual, SignedSessions, verifyPassword } from "../core/auth.js";
+import { SERVER_VERSION, type DibaMcpEngine } from "../core/engine.js";
 import { runNetcheck } from "../core/netcheck.js";
 
 export interface RouterOptions {
@@ -13,7 +13,8 @@ export interface RouterOptions {
   publicDir?: string;
 }
 
-const COOKIE = "imcp_sid";
+const COOKIE = "dmcp_sid";
+const SESSION_MAX_AGE = 12 * 60 * 60;
 const defaultPublic = fileURLToPath(new URL("../../public", import.meta.url));
 
 /**
@@ -21,20 +22,22 @@ const defaultPublic = fileURLToPath(new URL("../../public", import.meta.url));
  *   POST /mcp         ← اندپوینت MCP (Streamable HTTP، بدون نشست)
  *   /api/*            ← API داشبورد
  *   /                 ← داشبورد
- * پروژه‌ی میزبان: app.use("/iran-mcp", createIranMcpRouter(engine))
+ * پروژه‌ی میزبان: app.use("/diba-mcp", createDibaMcpRouter(engine))
  */
-export function createIranMcpRouter(engine: IranMcpEngine, opts: RouterOptions = {}): Router {
+export function createDibaMcpRouter(engine: DibaMcpEngine, opts: RouterOptions = {}): Router {
   const router = express.Router();
-  const sessions = new SessionStore();
-  const loginLimiter = new RateLimiter();
   const env = process.env;
+  const sessions = new SignedSessions(() => engine.store.sessionSecret, () => engine.store.sessionEpoch);
+  const loginLimiter = new RateLimiter(8, 10 * 60_000);
+  // محدودیت درخواست به اندپوینت MCP به ازای هر IP (پیش‌فرض ۱۲۰ در دقیقه)
+  const mcpLimiter = new RateLimiter(Math.max(1, Number(env.MCP_RATE_LIMIT) || 120), 60_000);
 
   // کد راه‌اندازی اولیه — فقط وقتی هنوز رمز ادمین تعیین نشده
   let setupCode: string | null = null;
   const needsSetup = () => !env.ADMIN_PASSWORD && !engine.store.admin;
   if (needsSetup()) {
     setupCode = randomBytes(3).toString("hex").toUpperCase();
-    console.error(`\n[iran-mcp] کد راه‌اندازی داشبورد: ${setupCode}\n`);
+    console.error(`\n[diba-mcp] کد راه‌اندازی داشبورد: ${setupCode}\n`);
   }
 
   // ---------------- MCP ----------------
@@ -48,7 +51,19 @@ export function createIranMcpRouter(engine: IranMcpEngine, opts: RouterOptions =
     next();
   };
 
-  router.post("/mcp", express.json({ limit: "4mb" }), mcpAuth, async (req, res) => {
+  const mcpRate = (req: Request, res: Response, next: NextFunction) => {
+    const key = req.ip ?? "?";
+    if (!mcpLimiter.allow(key)) {
+      res
+        .status(429)
+        .set("Retry-After", String(mcpLimiter.retryAfter(key)))
+        .json({ jsonrpc: "2.0", error: { code: -32029, message: `Rate limit exceeded (${mcpLimiter.max}/min)` }, id: null });
+      return;
+    }
+    next();
+  };
+
+  router.post("/mcp", mcpRate, express.json({ limit: "4mb" }), mcpAuth, async (req, res) => {
     const server = engine.createMcpServer();
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
     res.on("close", () => {
@@ -59,7 +74,7 @@ export function createIranMcpRouter(engine: IranMcpEngine, opts: RouterOptions =
       await server.connect(transport);
       await transport.handleRequest(req, res, req.body);
     } catch (err) {
-      console.error("[iran-mcp] MCP error", err);
+      console.error("[diba-mcp] MCP error", err);
       if (!res.headersSent) {
         res.status(500).json({ jsonrpc: "2.0", error: { code: -32603, message: "Internal server error" }, id: null });
       }
@@ -99,7 +114,7 @@ export function createIranMcpRouter(engine: IranMcpEngine, opts: RouterOptions =
       return void res.status(400).json({ error: "رمز باید حداقل ۸ کاراکتر باشد" });
     engine.store.setAdmin(hashPassword(password));
     setupCode = null;
-    setCookie(req, res, sessions.create());
+    setCookie(req, res, sessions.create(), SESSION_MAX_AGE);
     res.json({ ok: true });
   });
 
@@ -112,12 +127,13 @@ export function createIranMcpRouter(engine: IranMcpEngine, opts: RouterOptions =
         ? verifyPassword(password, engine.store.admin)
         : false;
     if (!ok) return void res.status(401).json({ error: "رمز عبور اشتباه است" });
-    setCookie(req, res, sessions.create());
+    setCookie(req, res, sessions.create(), SESSION_MAX_AGE);
     res.json({ ok: true });
   });
 
   api.post("/auth/logout", (req, res) => {
-    sessions.destroy(sid(req));
+    // خروج = باطل شدن همه‌ی نشست‌ها (فقط یک ادمین داریم)
+    if (sessions.valid(sid(req))) engine.store.bumpSessionEpoch();
     setCookie(req, res, "", 0);
     res.json({ ok: true });
   });
