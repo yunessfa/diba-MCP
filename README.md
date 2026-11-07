@@ -70,11 +70,12 @@ docker run -d --name diba-mcp -p 127.0.0.1:3790:3790 \
 ### انتشار نسخه‌ی جدید
 
 ```bash
-npm version patch        # یا minor / major — نسخه و تگ git را می‌سازد
-git push --follow-tags
+npm version patch --no-git-tag-version   # یا minor / major
+git commit -am "v0.2.1" && git push
 ```
 
-با push تگ، GitHub Actions این‌ها را می‌سازد: ایمیج Docker با شماره‌ی نسخه، یک GitHub Release با فایل نصب `.tgz`، و اگر secret به اسم `NPM_TOKEN` در ریپو تعریف شده باشد، انتشار روی npm.
+بعد در گیت‌هاب: **Actions ← Release ← Run workflow**. (push یک تگ `vX.Y.Z` هم همین کار را می‌کند.)
+GitHub Actions این‌ها را می‌سازد: ایمیج Docker با شماره‌ی نسخه، یک GitHub Release با فایل نصب `.tgz`، و اگر secret به اسم `NPM_TOKEN` در ریپو تعریف شده باشد، انتشار روی npm.
 
 > نصب مستقیم از `github:yunessfa/diba-MCP` پشتیبانی نمی‌شود (npm هنگام نصب سراسری از git ابزار build را نصب نمی‌کند)؛ از فایل Release یا npm استفاده کنید.
 
