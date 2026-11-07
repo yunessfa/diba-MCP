@@ -46,7 +46,7 @@ describe("ConfigStore", () => {
   test("defaults fill empty fields, missing required fields block readiness", () => {
     const s = new ConfigStore(dir(), {});
     s.update("rubika", { enabled: true });
-    assert.equal(s.resolve(rubika).values.baseUrl, "https://messengerg2b1.iranlms.ir/v3");
+    assert.equal(s.resolve(rubika).values.baseUrl, "https://botapi.rubika.ir/v3");
     assert.deepEqual(s.missingFields(rubika), ["token"]);
     assert.equal(s.isReady(rubika), false);
   });

@@ -534,8 +534,8 @@ async function pageConnect(main) {
     "Cursor / کلاینت‌های JSON": { lang: "json", code: JSON.stringify({ mcpServers: { "diba-mcp": { url, headers: { Authorization: `Bearer ${c.token}` } } } }, null, 2) },
     "Claude Desktop (stdio)": {
       lang: "json",
-      code: JSON.stringify({ mcpServers: { "diba-mcp": { command: "node", args: ["/path/to/diba-mcp/dist/stdio.js"], env: { DATA_DIR: "/path/to/diba-mcp/data" } } } }, null, 2),
-      note: "در حالت stdio سرور روی همان کامپیوتر اجرا می‌شود و تنظیمات را از پوشه‌ی data می‌خواند؛ توکن MCP لازم نیست. مسیرها را با مسیر واقعی پروژه عوض کنید.",
+      code: JSON.stringify({ mcpServers: { "diba-mcp": { command: "npx", args: ["-y", "diba-mcp", "stdio"] } } }, null, 2),
+      note: "در حالت stdio سرور روی همان کامپیوتر اجرا می‌شود و تنظیمات را از ~/.diba-mcp می‌خواند (همان پوشه‌ای که npx diba-mcp برای داشبورد استفاده می‌کند)؛ توکن MCP لازم نیست. پوشه‌ی دیگر: \"--data\", \"/path\" را به args اضافه کنید.",
     },
     "الحاق به پروژه‌ی Express": {
       lang: "js",

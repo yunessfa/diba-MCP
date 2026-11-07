@@ -35,7 +35,7 @@ export class ConfigStore {
 
   constructor(private dataDir: string, private env: NodeJS.ProcessEnv = process.env) {
     this.file = join(dataDir, "config.json");
-    mkdirSync(dataDir, { recursive: true });
+    mkdirSync(dataDir, { recursive: true, mode: 0o700 });
     this.data = this.load();
   }
 
@@ -95,6 +95,13 @@ export class ConfigStore {
   }
   setAdmin(admin: { salt: string; hash: string }) {
     this.data.admin = admin;
+    this.data.sessionEpoch++;
+    this.persist();
+  }
+
+  /** حذف رمز ادمین؛ اجرای بعدی دوباره «کد راه‌اندازی» می‌دهد */
+  clearAdmin() {
+    delete this.data.admin;
     this.data.sessionEpoch++;
     this.persist();
   }

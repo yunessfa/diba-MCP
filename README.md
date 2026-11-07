@@ -4,24 +4,77 @@
 
 **مرحله‌ی ۱ (همین نسخه):** پیام‌رسان‌ها — بله، ایتا، روبیکا، سروش‌پلاس
 
-## اجرا
+## نصب و اجرا
+
+پیش‌نیاز: Node.js نسخه‌ی ۲۲.۱۹ یا جدیدتر (یا فقط Docker).
+
+**با npx — بدون نصب:**
 
 ```bash
-npm install
-npm run dev          # داشبورد: http://127.0.0.1:3790  —  MCP: http://127.0.0.1:3790/mcp
+npx diba-mcp
 ```
 
-بار اول یک **کد راه‌اندازی** شش‌حرفی در کنسول چاپ می‌شود. با آن در داشبورد رمز ادمین را بسازید.
-بعد در بخش «پیام‌رسان‌ها» توکن ربات‌ها را ثبت و روشن کنید و در «اتصال به هوش مصنوعی» آدرس و توکن MCP را بردارید.
+**نصب سراسری:**
+
+```bash
+npm install -g diba-mcp
+diba-mcp
+```
+
+> تا قبل از انتشار روی npm، به‌جای `diba-mcp` از `github:yunessfa/diba-MCP` استفاده کنید:
+> `npx github:yunessfa/diba-MCP` یا `npm i -g github:yunessfa/diba-MCP`
+
+**با Docker:**
+
+```bash
+docker run -d --name diba-mcp -p 127.0.0.1:3790:3790 \
+  -e ADMIN_PASSWORD=your-password \
+  -v diba-mcp-data:/app/data \
+  ghcr.io/yunessfa/diba-mcp:latest
+```
+
+بعد مرورگر را باز کنید: **http://127.0.0.1:3790**
+
+بار اول (اگر `ADMIN_PASSWORD` نداده باشید) یک **کد راه‌اندازی** شش‌حرفی در ترمینال چاپ می‌شود. با آن در داشبورد رمز بسازید.
+بعد در «پیام‌رسان‌ها» توکن ربات‌ها را ثبت کنید و از «اتصال به هوش مصنوعی» آدرس و توکن MCP را بردارید.
+
+### دستورهای CLI
 
 | دستور | کار |
 |---|---|
-| `npm run dev` | اجرای توسعه با ری‌لود خودکار |
+| `diba-mcp` | داشبورد + اندپوینت MCP |
+| `diba-mcp stdio` | اجرا با stdio برای Claude Desktop |
+| `diba-mcp netcheck` | آیا این سیستم به API بله، ایتا، روبیکا و سروش می‌رسد؟ |
+| `diba-mcp token` | نمایش توکن اتصال MCP |
+| `diba-mcp reset-password` | حذف رمز داشبورد (اجرای بعدی کد راه‌اندازی می‌دهد) |
+
+گزینه‌ها: `--port 8080`، `--host 0.0.0.0`، `--data /path` (پیش‌فرض `~/.diba-mcp`)، `--env file.env`، `--help`
+
+**Claude Desktop** (`claude_desktop_config.json`):
+
+```json
+{ "mcpServers": { "diba-mcp": { "command": "npx", "args": ["-y", "diba-mcp", "stdio"] } } }
+```
+
+### توسعه روی همین ریپو
+
+| دستور | کار |
+|---|---|
+| `npm install` و `npm run dev` | اجرای توسعه با ری‌لود خودکار (داده در `./data`) |
+| `npm run cli -- <دستور>` | اجرای CLI از روی سورس |
 | `npm run build` و `npm start` | ساخت و اجرای نسخه‌ی production |
-| `npm run stdio` | اجرا در حالت stdio (برای Claude Desktop) |
 | `npm test` | همه‌ی تست‌ها (واحد + سرتاسری) |
 | `npm run typecheck` | بررسی تایپ‌ها |
-| `npm run netcheck` | بررسی دسترسی این سرور به API پیام‌رسان‌ها |
+| `npm run netcheck` | بررسی دسترسی به API پیام‌رسان‌ها |
+
+### انتشار نسخه‌ی جدید
+
+```bash
+npm version patch        # یا minor / major — نسخه و تگ git را می‌سازد
+git push --follow-tags
+```
+
+با push تگ، GitHub Actions ایمیج Docker با شماره‌ی نسخه می‌سازد و اگر secret به اسم `NPM_TOKEN` در ریپو تعریف شده باشد، پکیج را روی npm منتشر می‌کند.
 
 ## ساختار
 
@@ -42,7 +95,9 @@ src/
 │  └─ index.ts          # فهرست سرویس‌ها
 ├─ http/router.ts     # express.Router: /mcp + /api + داشبورد
 ├─ index.ts           # API کتابخانه برای الحاق
-├─ main.ts            # اجرای مستقل HTTP
+├─ cli.ts             # خط فرمان diba-mcp
+├─ server.ts          # راه‌اندازهای HTTP / stdio / netcheck
+├─ main.ts            # اجرای HTTP از روی env (Docker، npm run dev)
 └─ stdio.ts           # اجرای stdio
 public/               # داشبورد (HTML/CSS/JS ساده، بدون build)
 test/
@@ -80,7 +135,7 @@ test/
 
 ```js
 import express from "express";
-import { createDibaMcp } from "diba-mcp";   // یا مسیر نسبی به پوشه‌ی پروژه
+import { createDibaMcp } from "diba-mcp";   // npm i diba-mcp
 
 const app = express();
 const dibaMcp = createDibaMcp({ dataDir: "./data/diba-mcp" });
@@ -92,7 +147,7 @@ app.use("/diba-mcp", dibaMcp.router());                  // داشبورد + /di
 await dibaMcp.engine.callTool("eitaa_send_message", { text: "سفارش جدید" }, "dashboard");
 ```
 
-تا وقتی روی npm منتشر نشده، در package.json پروژه‌ی میزبان: `"diba-mcp": "file:../diba-mcp"` و یک بار `npm run build` در همین پروژه.
+تا وقتی روی npm منتشر نشده: `npm i github:yunessfa/diba-MCP`
 
 ## اضافه کردن سرویس جدید
 

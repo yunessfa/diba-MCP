@@ -1,8 +1,51 @@
 {
   "name": "diba-mcp",
-  "version": "0.1.0",
-  "description": "MCP server for Iranian services (Bale, Eitaa, Rubika, Soroush Plus) with a Persian dashboard",
+  "version": "0.2.0",
+  "description": "MCP server for Iranian messengers (Bale, Eitaa, Rubika, Soroush Plus) with a built-in Persian dashboard",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "iran",
+    "persian",
+    "bale",
+    "eitaa",
+    "rubika",
+    "soroush",
+    "dashboard",
+    "ai"
+  ],
+  "homepage": "https://github.com/yunessfa/diba-MCP#readme",
+  "bugs": {
+    "url": "https://github.com/yunessfa/diba-MCP/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yunessfa/diba-MCP.git"
+  },
+  "license": "MIT",
+  "author": "Yuness",
+  "type": "module",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "diba-mcp": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "public",
+    "README.md",
+    "DEPLOY.md",
+    ".env.example"
+  ],
+  "engines": {
+    "node": ">=22.19"
+  },
   "scripts": {
     "dev": "tsx watch src/main.ts",
     "stdio": "tsx src/stdio.ts",
@@ -13,17 +56,11 @@
     "test": "npm run test:unit && npm run test:e2e",
     "netcheck": "tsx src/netcheck.ts",
     "test:unit": "tsx --test \"test/unit/**/*.test.ts\"",
-    "test:e2e": "tsx test/e2e.ts"
+    "test:e2e": "tsx test/e2e.ts",
+    "cli": "tsx src/cli.ts",
+    "prepare": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run typecheck && npm test"
   },
-  "keywords": [
-    "mcp",
-    "iran",
-    "bale",
-    "eitaa",
-    "rubika",
-    "soroush"
-  ],
-  "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
     "express": "^5.3.0",
@@ -35,20 +72,5 @@
     "@types/node": "^26.6.6",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
-  },
-  "type": "module",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist",
-    "public"
-  ],
-  "engines": {
-    "node": ">=22.19"
   }
 }

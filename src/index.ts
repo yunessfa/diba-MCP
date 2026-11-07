@@ -10,7 +10,7 @@
  *   await dibaMcp.engine.callTool("bale_send_message", { text: "سلام" }, "dashboard");
  */
 import { resolve } from "node:path";
-import { DibaMcpEngine } from "./core/engine.js";
+import { DibaMcpEngine, SERVER_VERSION } from "./core/engine.js";
 import { configureProxy } from "./core/net.js";
 import type { ProviderDef } from "./core/types.js";
 import { createDibaMcpRouter, type RouterOptions } from "./http/router.js";
@@ -29,13 +29,12 @@ export function createDibaMcp(opts: CreateOptions = {}) {
   configureProxy(opts.env ?? process.env);
   let providers = [...builtinProviders, ...(opts.extraProviders ?? [])];
   if (opts.only) providers = providers.filter((p) => opts.only!.includes(p.id));
-  const engine = new DibaMcpEngine({
-    dataDir: resolve(opts.dataDir ?? process.env.DATA_DIR ?? "./data"),
-    providers,
-    env: opts.env,
-  });
+  const dataDir = resolve(opts.dataDir ?? process.env.DATA_DIR ?? "./data");
+  const engine = new DibaMcpEngine({ dataDir, providers, env: opts.env });
   return {
     engine,
+    dataDir,
+    version: SERVER_VERSION,
     /** express.Router شامل /mcp ، /api و داشبورد */
     router: (o?: RouterOptions) => createDibaMcpRouter(engine, o),
     /** یک McpServer برای اتصال به هر transport دلخواه (stdio و ...) */
@@ -43,7 +42,8 @@ export function createDibaMcp(opts: CreateOptions = {}) {
   };
 }
 
-export { DibaMcpEngine } from "./core/engine.js";
+export { DibaMcpEngine, SERVER_VERSION } from "./core/engine.js";
+export { startHttp, startStdio, printNetcheck } from "./server.js";
 export { defineTool, ProviderError } from "./core/types.js";
 export type { ProviderDef, ToolDef, ProviderField, ProviderContext } from "./core/types.js";
 export { createTelegramLikeProvider } from "./providers/telegram-like.js";

@@ -14,14 +14,8 @@ docker compose version     # باید نسخه را نشان دهد
 
 ## ۲. گرفتن پروژه
 
-ریپو private است، پس یکی از این دو:
-
 ```bash
-# با Personal Access Token (Settings → Developer settings → Fine-grained token، فقط Read روی همین ریپو)
-git clone https://<TOKEN>@github.com/yunessfa/diba-mcp.git
-
-# یا با کلید SSH سرور که در گیت‌هاب ثبت شده باشد
-git clone git@github.com:yunessfa/diba-mcp.git
+git clone https://github.com/yunessfa/diba-MCP.git diba-mcp
 ```
 
 ```bash
@@ -32,8 +26,11 @@ nano .env        # حداقل ADMIN_PASSWORD را عوض کنید
 
 ## ۳. اجرا
 
+> اگر ایمیج آماده هنوز منتشر نشده یا کد را تغییر داده‌اید: `docker compose up -d --build`
+
 ```bash
-docker compose up -d --build
+docker compose pull          # ایمیج آماده از GitHub (سریع)
+docker compose up -d
 docker compose ps            # وضعیت باید healthy شود
 docker compose logs -f       # دیدن لاگ (Ctrl+C برای خروج)
 ```
@@ -167,7 +164,7 @@ NO_PROXY=localhost,127.0.0.1
 |---|---|
 | لاگ زنده | `docker compose logs -f diba-mcp` |
 | ری‌استارت | `docker compose restart diba-mcp` |
-| آپدیت از گیت | `git pull && docker compose up -d --build` |
+| آپدیت | `git pull && docker compose pull && docker compose up -d` |
 | توقف | `docker compose down` (داده‌ها در volume می‌مانند) |
 | بکاپ تنظیمات | `docker compose cp diba-mcp:/app/data/config.json ./backup-config.json` |
 | تست شبکه | `docker compose exec diba-mcp node dist/netcheck.js` |

@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { redact } from "./http.js";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { RateLimiter } from "./auth.js";
 import { CallLogger } from "./logger.js";
@@ -11,7 +12,14 @@ import { ProviderError, type ProviderDef, type ToolDef } from "./types.js";
 z.config(z.locales.fa());
 
 export const SERVER_NAME = "diba-mcp";
-export const SERVER_VERSION = "0.1.0";
+/** نسخه از package.json خوانده می‌شود (هم در src و هم در dist دو پوشه بالاتر است) */
+export const SERVER_VERSION: string = (() => {
+  try {
+    return JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version;
+  } catch {
+    return "0.0.0";
+  }
+})();
 
 export interface EngineOptions {
   /** پوشه‌ی ذخیره‌ی config.json */
