@@ -1,0 +1,45 @@
+# اجرا:            docker compose up -d --build
+# با HTTPS و دامنه: docker compose --profile https up -d --build
+# راهنمای کامل:    DEPLOY.md
+
+services:
+  iran-mcp:
+    build: .
+    image: iran-mcp:latest
+    container_name: iran-mcp
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3790
+      DATA_DIR: /app/data
+    ports:
+      # پیش‌فرض فقط روی localhost سرور باز است (دسترسی با تونل SSH یا از طریق Caddy).
+      # برای تست سریع با IP عمومی در .env بگذارید: BIND_ADDR=0.0.0.0
+      - "${BIND_ADDR:-127.0.0.1}:${PUBLIC_PORT:-3790}:3790"
+    volumes:
+      - iran-mcp-data:/app/data
+    extra_hosts:
+      # برای رسیدن به تونل SOCKS که روی خود سرور اجرا شده
+      - "host.docker.internal:host-gateway"
+
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["https"]
+    container_name: iran-mcp-caddy
+    restart: unless-stopped
+    depends_on: [iran-mcp]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-}  # در .env تنظیم کنید
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  iran-mcp-data:
+  caddy-data:
+  caddy-config:
