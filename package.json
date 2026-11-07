@@ -58,8 +58,7 @@
     "test:unit": "tsx --test \"test/unit/**/*.test.ts\"",
     "test:e2e": "tsx test/e2e.ts",
     "cli": "tsx src/cli.ts",
-    "prepare": "tsc -p tsconfig.json",
-    "prepublishOnly": "npm run typecheck && npm test"
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",

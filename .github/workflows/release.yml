@@ -1,7 +1,9 @@
 name: Release
 
 # push به main  → ایمیج ghcr.io/yunessfa/diba-mcp:latest
-# تگ v1.2.3     → ایمیج :1.2.3 و :1.2 + انتشار روی npm (اگر NPM_TOKEN تنظیم شده باشد)
+# تگ v1.2.3     → ایمیج :1.2.3 و :1.2
+#               + GitHub Release با فایل diba-mcp-1.2.3.tgz (نصب: npm i -g <لینک فایل>)
+#               + انتشار روی npm (اگر secret به اسم NPM_TOKEN تنظیم شده باشد)
 
 on:
   push:
@@ -10,7 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   packages: write
   id-token: write
 
@@ -48,9 +50,11 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  npm:
+  package:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -59,8 +63,22 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: npm ci
       - run: npm run typecheck && npm test
-      - name: Publish to npm
+      - run: npm run build
+      - name: Check tag matches package version
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $VERSION"; exit 1
+          fi
+      - run: npm pack
+      - name: GitHub Release
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        if: env.NODE_AUTH_TOKEN != ''
-        run: npm publish --access public --provenance
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" diba-mcp-*.tgz --title "dibaMCP $GITHUB_REF_NAME" --generate-notes \
+            || gh release upload "$GITHUB_REF_NAME" diba-mcp-*.tgz --clobber
+      - name: Publish to npm
+        if: env.NPM_TOKEN != ''
+        env:
+          NODE_AUTH_TOKEN: ${{ env.NPM_TOKEN }}
+        run: npm publish --access public --provenance --ignore-scripts

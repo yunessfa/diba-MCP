@@ -21,8 +21,8 @@ npm install -g diba-mcp
 diba-mcp
 ```
 
-> تا قبل از انتشار روی npm، به‌جای `diba-mcp` از `github:yunessfa/diba-MCP` استفاده کنید:
-> `npx github:yunessfa/diba-MCP` یا `npm i -g github:yunessfa/diba-MCP`
+> تا قبل از انتشار روی npm، از فایل آماده‌ی آخرین [Release](https://github.com/yunessfa/diba-MCP/releases) نصب کنید:
+> `npm i -g https://github.com/yunessfa/diba-MCP/releases/download/v0.2.0/diba-mcp-0.2.0.tgz`
 
 **با Docker:**
 
@@ -74,7 +74,9 @@ npm version patch        # یا minor / major — نسخه و تگ git را می
 git push --follow-tags
 ```
 
-با push تگ، GitHub Actions ایمیج Docker با شماره‌ی نسخه می‌سازد و اگر secret به اسم `NPM_TOKEN` در ریپو تعریف شده باشد، پکیج را روی npm منتشر می‌کند.
+با push تگ، GitHub Actions این‌ها را می‌سازد: ایمیج Docker با شماره‌ی نسخه، یک GitHub Release با فایل نصب `.tgz`، و اگر secret به اسم `NPM_TOKEN` در ریپو تعریف شده باشد، انتشار روی npm.
+
+> نصب مستقیم از `github:yunessfa/diba-MCP` پشتیبانی نمی‌شود (npm هنگام نصب سراسری از git ابزار build را نصب نمی‌کند)؛ از فایل Release یا npm استفاده کنید.
 
 ## ساختار
 
@@ -147,7 +149,7 @@ app.use("/diba-mcp", dibaMcp.router());                  // داشبورد + /di
 await dibaMcp.engine.callTool("eitaa_send_message", { text: "سفارش جدید" }, "dashboard");
 ```
 
-تا وقتی روی npm منتشر نشده: `npm i github:yunessfa/diba-MCP`
+تا وقتی روی npm منتشر نشده: `npm i https://github.com/yunessfa/diba-MCP/releases/download/v0.2.0/diba-mcp-0.2.0.tgz`
 
 ## اضافه کردن سرویس جدید
 
