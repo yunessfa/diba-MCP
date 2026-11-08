@@ -18,6 +18,7 @@ export interface ChatSummary {
   title?: string;
   type: IncomingMessage["chatType"];
   lastText?: string;
+  lastDirection?: "in" | "out";
   lastDate: string;
   count: number;
 }
@@ -102,7 +103,9 @@ export class Inbox {
 
   /** پیام‌های جدید را اضافه می‌کند (تکراری‌ها رد می‌شوند). تعداد واقعاً جدید را برمی‌گرداند */
   add(id: string, messages: IncomingMessage[], cursor?: string): number {
-    const d = this.load(id);
+    // اگر این پروسه دریافت‌کننده نیست (مثلاً stdio)، اول آخرین نسخه‌ی فایل را بخوان تا پیام‌های
+    // نوشته‌شده توسط سرور اصلی بازنویسی نشوند
+    const d = this.load(id, !this.loops.has(id));
     const known = new Set(d.messages.map((m) => m.key));
     const fresh = messages.filter((m) => !known.has(m.key));
     if (fresh.length) {
@@ -120,26 +123,66 @@ export class Inbox {
    */
   messages(id: string, opts: { chatId?: string; limit?: number } = {}): IncomingMessage[] {
     const d = this.load(id, !this.loops.has(id));
-    const list = opts.chatId ? d.messages.filter((m) => m.chatId === opts.chatId) : d.messages;
+    const list = (opts.chatId ? d.messages.filter((m) => m.chatId === opts.chatId) : d.messages.slice())
+      // ترتیب زمانی، حتی اگر پیامی دیرتر از پیام‌های بعدی‌اش دریافت شده باشد
+      .sort((a, b) => b.date.localeCompare(a.date));
     return list.slice(0, Math.min(Math.max(opts.limit ?? 50, 1), MAX_MESSAGES));
   }
 
   chats(providerId?: string): ChatSummary[] {
     const out = new Map<string, ChatSummary>();
     for (const p of this.providers) {
-      if (!p.receive || (providerId && p.id !== providerId)) continue;
-      for (const m of this.load(p.id, !this.loops.has(p.id)).messages) {
+      if (providerId && p.id !== providerId) continue;
+      // جدیدترین پیام هر چت اول بیاید تا lastText درست باشد
+      if (!p.receive && !existsSync(this.file(p.id)) && !this.data.has(p.id)) continue;
+      const sorted = this.load(p.id, !this.loops.has(p.id)).messages.slice().sort((a, b) => b.date.localeCompare(a.date));
+      for (const m of sorted) {
         const k = `${m.provider}:${m.chatId}`;
         const c = out.get(k);
         if (!c) {
-          out.set(k, { provider: m.provider, chatId: m.chatId, title: m.chatTitle, type: m.chatType, lastText: m.text, lastDate: m.date, count: 1 });
+          out.set(k, {
+            provider: m.provider,
+            chatId: m.chatId,
+            title: m.chatTitle,
+            type: m.chatType,
+            lastText: m.text ?? (m.kind !== "text" ? m.kind : undefined),
+            lastDirection: m.direction ?? "in",
+            lastDate: m.date,
+            count: 1,
+          });
         } else {
           c.count++;
           if (!c.title && m.chatTitle) c.title = m.chatTitle;
+          if (c.type === "unknown" && m.chatType !== "unknown") c.type = m.chatType;
         }
       }
     }
     return [...out.values()].sort((a, b) => b.lastDate.localeCompare(a.lastDate));
+  }
+
+  /** پیامی که خود ربات فرستاده را ثبت می‌کند تا در گفتگو دیده شود */
+  recordOutgoing(
+    id: string,
+    m: { chatId: string; messageId?: string; text?: string; kind: IncomingMessage["kind"]; source: "mcp" | "dashboard"; mediaUrl?: string },
+  ) {
+    const known = this.load(id, !this.loops.has(id)).messages.find((x) => x.chatId === m.chatId && x.direction !== "out");
+    const messageId = m.messageId || `local-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    this.add(id, [
+      {
+        key: `${id}:${m.chatId}:${messageId}`,
+        provider: id,
+        chatId: m.chatId,
+        chatTitle: known?.chatTitle,
+        chatType: known?.chatType ?? "unknown",
+        messageId,
+        text: m.text,
+        kind: m.kind,
+        date: new Date().toISOString(),
+        direction: "out",
+        source: m.source,
+        mediaUrl: m.mediaUrl,
+      },
+    ]);
   }
 
   access(id: string): InboxAccess {

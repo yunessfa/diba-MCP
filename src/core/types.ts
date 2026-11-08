@@ -35,6 +35,12 @@ export interface IncomingMessage {
   buttonId?: string;
   /** زمان پیام (ISO) */
   date: string;
+  /** in = از کاربر به ربات (پیش‌فرض)، out = پیامی که خود ربات فرستاده */
+  direction?: "in" | "out";
+  /** برای پیام‌های out: از داشبورد یا از طرف مدل */
+  source?: "mcp" | "dashboard";
+  /** برای عکس/فایل ارسالی از لینک: آدرس لینک (برای پیش‌نمایش) */
+  mediaUrl?: string;
 }
 
 export interface PollResult {

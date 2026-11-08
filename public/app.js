@@ -682,7 +682,7 @@ function receiverHtml(p, st) {
   const ready = p.ready;
   let pill, info = "";
   if (!ready) { pill = '<span class="pill pill-off">توکن ثبت نشده</span>'; info = `<a href="#/providers?open=${p.id}">ثبت توکن</a>`; }
-  else if (st.lastError) { pill = '<span class="pill pill-err">خطا</span>'; info = `<span class="err">${esc(st.lastError)}</span>`; }
+  else if (st.lastError) { pill = '<span class="pill pill-err">خطا</span>'; info = `<span class="err" title="${esc(st.lastError)}">${esc(st.lastError)}</span>`; }
   else if (st.running) { pill = '<span class="pill pill-ok">در حال دریافت</span>'; info = st.lastPollAt ? `آخرین بررسی ${ago(st.lastPollAt)}` : "در حال اتصال…"; }
   else pill = '<span class="pill pill-off">خاموش</span>';
   const webhook = /webhook/i.test(st.lastError || "");
@@ -707,7 +707,7 @@ async function pageInbox(main, q) {
   let data = { statuses: [], chats: [], messages: [] };
   let lastSig = "";
 
-  main.innerHTML = `${head("پیام‌های دریافتی", "پیام‌هایی که کاربران به ربات‌ها می‌دهند. از اینجا شناسه‌ی چت‌ها را پیدا کنید، چت پیش‌فرض را تعیین کنید و جواب بدهید.")}
+  main.innerHTML = `${head("پیام‌های دریافتی", "گفتگوهای ربات‌ها: پیام‌هایی که کاربران می‌دهند و پیام‌هایی که ربات فرستاده. از اینجا شناسه‌ی چت‌ها را پیدا کنید، چت پیش‌فرض را تعیین کنید و جواب بدهید.")}
     <section class="receivers" id="rcv"></section>
     <p class="note rcv-note">«دریافت خودکار» پیام‌های ربات را مرتب می‌خواند و ابزار get_updates مدل هم از همین صندوق جواب می‌دهد. اگر برنامه‌ی دیگری (وبهوک یا ربات دیگر) هم پیام‌های همین ربات را می‌خواند، روشنش نکنید؛ «بررسی الان» هم پیام‌ها را برمی‌دارد.</p>
     <section class="inbox">
@@ -736,7 +736,7 @@ async function pageInbox(main, q) {
         <span class="disc xs" style="background:${p.color}">${esc(p.glyph)}</span>
         <span class="ci-body">
           <span class="ci-top"><b dir="auto">${esc(c.title || c.chatId)}</b><span class="meta">${ago(c.lastDate)}</span></span>
-          <span class="ci-sub"><span dir="auto">${esc(c.lastText || "—")}</span></span>
+          <span class="ci-sub">${c.lastDirection === "out" ? '<span class="ci-you">شما: </span>' : ""}<span dir="auto">${esc(kindFa[c.lastText] ?? c.lastText ?? "—")}</span></span>
           <span class="ci-tags">${chatTypeFa[c.type] ? `<i>${chatTypeFa[c.type]}</i>` : ""}${isDef ? "<i class='def'>پیش‌فرض</i>" : ""}<i>${fa(c.count)} پیام</i></span>
         </span>
       </button>`;
@@ -762,11 +762,20 @@ async function pageInbox(main, q) {
         ${isDef ? `<span class="pill pill-ok">چت پیش‌فرض ${esc(p.nameFa)}</span>` : `<button class="btn" data-set-default>تنظیم به‌عنوان چت پیش‌فرض</button>`}
       </header>
       <ol class="msgs" id="msgs">
-        ${data.messages.slice().reverse().map((m) => `<li class="msg">
-          <div class="msg-meta">${m.from?.name ? `<b dir="auto">${esc(m.from.name)}</b>` : ""}${m.from?.username ? `<span class="ltr">@${esc(m.from.username)}</span>` : ""}<span>${new Date(m.date).toLocaleString("fa-IR", { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" })}</span></div>
-          ${kindFa[m.kind] ? `<span class="msg-kind">${kindFa[m.kind]}${m.buttonId ? `: <code class="ltr">${esc(m.buttonId)}</code>` : ""}</span>` : ""}
-          ${m.text ? `<p dir="auto">${esc(m.text)}</p>` : ""}
-        </li>`).join("")}
+        ${data.messages.slice().reverse().map((m) => {
+          const out = m.direction === "out";
+          const time = new Date(m.date).toLocaleString("fa-IR", { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" });
+          const who = out
+            ? `<b>ربات</b><span>${m.source === "mcp" ? "از طرف هوش مصنوعی" : "از داشبورد"}</span>`
+            : `${m.from?.name ? `<b dir="auto">${esc(m.from.name)}</b>` : ""}${m.from?.username ? `<span class="ltr">@${esc(m.from.username)}</span>` : ""}`;
+          const img = out && m.kind === "photo" && m.mediaUrl ? `<img class="msg-img" src="${esc(m.mediaUrl)}" alt="" loading="lazy" onerror="this.remove()">` : "";
+          return `<li class="msg${out ? " out" : ""}">
+            <div class="msg-meta">${who}<span>${time}</span></div>
+            ${img}
+            ${kindFa[m.kind] ? `<span class="msg-kind">${kindFa[m.kind]}${m.buttonId ? `: <code class="ltr">${esc(m.buttonId)}</code>` : ""}</span>` : ""}
+            ${m.text ? `<p dir="auto">${esc(m.text)}</p>` : ""}
+          </li>`;
+        }).join("")}
       </ol>
       <form class="composer" data-reply>
         <textarea class="textarea" data-draft rows="2" dir="auto" placeholder="جواب به ${esc(chat.title || chat.chatId)}…" aria-label="متن جواب"></textarea>
@@ -780,7 +789,7 @@ async function pageInbox(main, q) {
   const load = async (force = false) => {
     const qs = sel.p && sel.c ? `?provider=${encodeURIComponent(sel.p)}&chat=${encodeURIComponent(sel.c)}` : "";
     data = await api(`inbox${qs}`);
-    const sig = JSON.stringify([data.statuses.map((s) => [s.enabled, s.running, s.lastError, s.received, s.lastPollAt && ago(s.lastPollAt)]), data.chats.map((c) => c.lastDate + c.count), data.messages.length, sel]);
+    const sig = JSON.stringify([data.statuses.map((s) => [s.enabled, s.running, s.lastError, s.received, s.lastPollAt && ago(s.lastPollAt)]), data.chats.map((c) => c.lastDate + c.count), data.messages.length, data.messages[0]?.key, sel]);
     drawReceivers();
     if (force || sig !== lastSig) { drawChats(); drawConvo(); }
     lastSig = sig;
@@ -836,7 +845,7 @@ async function pageInbox(main, q) {
     const text = draft.value.trim();
     if (!text) return draft.focus();
     const r = await busy(form.querySelector("[type=submit]"), () => api(`tools/${sel.p}_send_message/call`, { body: { args: { chat_id: sel.c, text } } }));
-    if (r.ok) { draft.value = ""; toast("ارسال شد"); } else toast(r.error, true);
+    if (r.ok) { draft.value = ""; await load(true); } else toast(r.error, true);
   });
   main.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && e.target.matches("[data-draft]")) e.target.closest("form").requestSubmit();

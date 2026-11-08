@@ -151,10 +151,44 @@ export class DibaMcpEngine {
     const values = ctx.config;
     try {
       const result = await tool.handler(parsed.data, ctx);
+      this.recordSent(provider, tool.name, parsed.data as Record<string, unknown>, result, source);
       return finish({ ok: true, result });
     } catch (err: any) {
       const msg = err instanceof ProviderError ? err.message : `خطای داخلی: ${err?.message ?? err}`;
       return finish({ ok: false, error: redact(msg, Object.values(values)) });
+    }
+  }
+
+  /** پیام‌های ارسالی ربات را در گفتگوی همان چت ثبت می‌کند */
+  private recordSent(provider: ProviderDef, toolName: string, args: Record<string, unknown>, result: unknown, source: "mcp" | "dashboard") {
+    if (!/_send_/.test(toolName)) return;
+    try {
+      const chatId = String(args.chat_id || this.store.resolve(provider).values.defaultChatId || "");
+      if (!chatId) return;
+      const r: any = result;
+      const messageId = r?.message_id ?? r?.result?.message_id ?? r?.data?.message_id;
+      const kind = /_send_photo$/.test(toolName)
+        ? "photo"
+        : /_send_(document|file)$/.test(toolName)
+          ? "file"
+          : /_send_location$/.test(toolName)
+            ? "location"
+            : "text";
+      const media = [args.photo, args.document, args.file].find((v) => typeof v === "string") as string | undefined;
+      const text =
+        (args.text as string | undefined) ??
+        (args.caption as string | undefined) ??
+        (kind === "location" ? `${args.latitude}, ${args.longitude}` : undefined);
+      this.inbox.recordOutgoing(provider.id, {
+        chatId,
+        messageId: messageId !== undefined ? String(messageId) : undefined,
+        text,
+        kind,
+        source,
+        mediaUrl: media && /^https?:\/\//i.test(media) ? media : undefined,
+      });
+    } catch (err) {
+      console.error("[diba-mcp] ثبت پیام ارسالی ناموفق بود", err);
     }
   }
 

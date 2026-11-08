@@ -218,7 +218,7 @@ export function createTelegramLikeProvider(o: TelegramLikeOptions): ProviderDef 
         name: `${p}_get_updates`,
         title: "دریافت پیام‌های جدید",
         description:
-          `Read recent incoming messages sent to the ${o.name} bot (newest first), with chat ids and sender names. ` +
+          `Read recent messages in the ${o.name} bot's chats (newest first), with chat ids and sender names. Messages the bot itself sent have direction \"out\". ` +
           `Use it to find a chat_id or to see what users wrote.`,
         input: {
           chat_id: z.string().optional().describe("Only messages from this chat"),

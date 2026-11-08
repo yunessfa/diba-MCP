@@ -22,7 +22,7 @@ diba-mcp
 ```
 
 > تا قبل از انتشار روی npm، از فایل آماده‌ی آخرین [Release](https://github.com/yunessfa/diba-MCP/releases) نصب کنید:
-> `npm i -g https://github.com/yunessfa/diba-MCP/releases/download/v0.4.0/diba-mcp-0.4.0.tgz`
+> `npm i -g https://github.com/yunessfa/diba-MCP/releases/download/v0.4.1/diba-mcp-0.4.1.tgz`
 
 **با Docker:**
 
@@ -132,6 +132,8 @@ test/
 2. از گوشی یک پیام به ربات بدهید. برای کانال: ربات را ادمین کنید و یک پست بگذارید.
 3. چت در فهرست ظاهر می‌شود: شناسه‌اش را کپی کنید، «تنظیم به‌عنوان چت پیش‌فرض» را بزنید یا همان‌جا جواب بدهید.
 
+پیام‌هایی که خود ربات می‌فرستد (از داشبورد، از طرف هوش مصنوعی یا در تست کامل) هم در همان گفتگو، سمت دیگر و با رنگ متفاوت نمایش داده می‌شوند.
+
 وقتی دریافت خودکار روشن است، ابزار `*_get_updates` مدل از همین صندوق جواب می‌دهد و `list_chats` فهرست چت‌ها را به مدل می‌دهد. پیام‌ها در `data/inbox` ذخیره می‌شوند (۵۰۰ پیام آخر هر پیام‌رسان).
 از env هم می‌شود روشنش کرد: `BALE_RECEIVE=true`.
 
@@ -174,7 +176,7 @@ app.use("/diba-mcp", dibaMcp.router());                  // داشبورد + /di
 await dibaMcp.engine.callTool("eitaa_send_message", { text: "سفارش جدید" }, "dashboard");
 ```
 
-تا وقتی روی npm منتشر نشده: `npm i https://github.com/yunessfa/diba-MCP/releases/download/v0.4.0/diba-mcp-0.4.0.tgz`
+تا وقتی روی npm منتشر نشده: `npm i https://github.com/yunessfa/diba-MCP/releases/download/v0.4.1/diba-mcp-0.4.1.tgz`
 
 ## اضافه کردن سرویس جدید
 

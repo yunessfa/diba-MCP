@@ -167,6 +167,21 @@ describe("Inbox", () => {
   });
 });
 
+describe("outgoing messages", () => {
+  test("recorded with direction out; an incoming copy with the same id is not duplicated", () => {
+    const { p } = fakeProvider([[]]);
+    const e = new DibaMcpEngine({ dataDir: mkdtempSync(join(tmpdir(), "diba-out-")), providers: [p], env: {} });
+    e.inbox.recordOutgoing("fake", { chatId: "c9", messageId: "42", text: "hi", kind: "text", source: "dashboard" });
+    e.inbox.add("fake", [{ ...msg(42, "c9"), key: "fake:c9:42" }]);
+    const list = e.inbox.messages("fake", { chatId: "c9" });
+    assert.equal(list.length, 1);
+    assert.equal(list[0].direction, "out");
+    e.inbox.recordOutgoing("fake", { chatId: "c9", text: "no id", kind: "text", source: "mcp" });
+    e.inbox.recordOutgoing("fake", { chatId: "c9", text: "no id 2", kind: "text", source: "mcp" });
+    assert.equal(e.inbox.messages("fake", { chatId: "c9" }).length, 3, "messages without an id get unique local ids");
+  });
+});
+
 describe("self-test helpers", () => {
   test("hints map common errors to advice", () => {
     assert.match(hintFor("بله: Unauthorized", "auth")!, /توکن/);

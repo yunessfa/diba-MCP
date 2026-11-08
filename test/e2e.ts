@@ -22,6 +22,7 @@ const listen = (app: express.Express) =>
 // ---------- API جعلی ----------
 const seen: any[] = [];
 const tgUpdates: any[] = [];
+let nextMsgId = 1000;
 const tgUpdate = (id: number, chat: number, text: string, extra: Record<string, unknown> = {}) =>
   tgUpdates.push({ update_id: id, message: { message_id: id, date: Math.floor(Date.now() / 1000), text, chat: { id: chat, type: "private", first_name: "مریم", ...extra }, from: { id: chat, first_name: "مریم" } } });
 const mock = express();
@@ -53,7 +54,7 @@ mock.post("/tg/:bot/:method", express.json(), async (req, res) => {
     return void res.json({ ok: true, result: tgUpdates.filter((u) => u.update_id >= offset) });
   }
   if (req.params.method === "getChat") return void res.json({ ok: true, result: { id: body.chat_id, type: "private", first_name: "مریم" } });
-  res.json({ ok: true, result: { message_id: 42, chat: { id: body.chat_id }, text: body.text } });
+  res.json({ ok: true, result: { message_id: ++nextMsgId, chat: { id: body.chat_id }, text: body.text } });
 });
 mock.post("/eitaa/:token/:method", async (req, res) => {
   seen.push({ api: "eitaa", method: req.params.method, body: await readForm(req) });
@@ -236,9 +237,10 @@ try {
       for (let i = 0; i < 200 && !cond(); i++) await new Promise((r) => setTimeout(r, 15));
       assert.ok(cond(), "timeout");
     };
-    await until(() => dibaMcp.engine.inbox.messages("bale").length === 1);
+    const incoming = () => dibaMcp.engine.inbox.messages("bale", { limit: 500 }).filter((m) => m.direction !== "out");
+    await until(() => incoming().length === 1);
     tgUpdate(101, 888, "پیام دوم", { first_name: "رضا" });
-    await until(() => dibaMcp.engine.inbox.messages("bale").length === 2);
+    await until(() => incoming().length === 2);
     // offset درست جلو رفته: آخرین getUpdates با offset=102
     const lastPoll = seen.filter((x) => x.method === "getUpdates").at(-1);
     assert.equal(lastPoll.body.offset, 102);
@@ -247,7 +249,29 @@ try {
     assert.equal(data.source, "inbox");
     assert.deepEqual(data.messages.map((m: any) => m.text), ["پیام دوم"]);
     const chats = JSON.parse((await call("list_chats", { provider: "bale" })).content[0].text);
-    assert.deepEqual(chats.chats.map((c: any) => c.chatId).sort(), ["777", "888"]);
+    const ids = chats.chats.map((c: any) => c.chatId);
+    assert.ok(ids.includes("777") && ids.includes("888"), JSON.stringify(ids));
+  });
+
+  await step("پیام‌های ارسالی ربات در گفتگو ثبت می‌شوند (منبع، نوع، لینک عکس)", async () => {
+    const out = dibaMcp.engine.inbox.messages("bale", { chatId: "555" }).filter((m) => m.direction === "out");
+    const texts = out.map((m) => m.text);
+    assert.ok(texts.includes("سلام از تست"), JSON.stringify(texts));
+    assert.ok(out.every((m) => m.source === "mcp"));
+    const photo = out.find((m) => m.kind === "photo" && m.mediaUrl);
+    assert.match(photo!.mediaUrl!, /\/go$/);
+    assert.ok(!out.some((m) => (m.mediaUrl ?? "").startsWith("data:")), "data URLs are never stored");
+    // از داشبورد به یک چت دیگر
+    const r = await dibaMcp.engine.callTool("bale_send_message", { chat_id: "777", text: "جواب از داشبورد" }, "dashboard");
+    assert.ok(r.ok);
+    const conv = dibaMcp.engine.inbox.messages("bale", { chatId: "777" });
+    assert.equal(conv[0].direction, "out");
+    assert.equal(conv[0].source, "dashboard");
+    assert.equal(conv[0].chatTitle, "مریم"); // عنوان از پیام‌های قبلی همان چت
+    const chat = dibaMcp.engine.inbox.chats("bale").find((c) => c.chatId === "777")!;
+    assert.equal(chat.lastDirection, "out");
+    // ایتا دریافت ندارد ولی پیام‌های ارسالی‌اش در فهرست چت‌ها هست
+    assert.ok(dibaMcp.engine.inbox.chats().some((c) => c.provider === "eitaa" && c.chatId === "mychannel"));
   });
 
   await step("تست کامل بله: همه‌ی قدم‌ها سبز", async () => {

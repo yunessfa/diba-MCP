@@ -240,7 +240,7 @@ export const rubika: ProviderDef = {
       name: "rubika_get_updates",
       title: "دریافت پیام‌های جدید",
       description:
-        "Read recent incoming messages sent to the Rubika bot (newest first), with chat ids. Use it to find a chat_id or to see what users wrote.",
+        "Read recent messages in the Rubika bot's chats (newest first), with chat ids. Messages the bot itself sent have direction \"out\". Use it to find a chat_id or to see what users wrote.",
       input: {
         chat_id: z.string().optional().describe("Only messages from this chat"),
         limit: z.number().int().min(1).max(100).optional().describe("Max messages, default 20"),
