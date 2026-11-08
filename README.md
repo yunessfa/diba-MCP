@@ -22,7 +22,7 @@ diba-mcp
 ```
 
 > تا قبل از انتشار روی npm، از فایل آماده‌ی آخرین [Release](https://github.com/yunessfa/diba-MCP/releases) نصب کنید:
-> `npm i -g https://github.com/yunessfa/diba-MCP/releases/download/v0.3.0/diba-mcp-0.3.0.tgz`
+> `npm i -g https://github.com/yunessfa/diba-MCP/releases/download/v0.3.1/diba-mcp-0.3.1.tgz`
 
 **با Docker:**
 
@@ -153,7 +153,7 @@ app.use("/diba-mcp", dibaMcp.router());                  // داشبورد + /di
 await dibaMcp.engine.callTool("eitaa_send_message", { text: "سفارش جدید" }, "dashboard");
 ```
 
-تا وقتی روی npm منتشر نشده: `npm i https://github.com/yunessfa/diba-MCP/releases/download/v0.3.0/diba-mcp-0.3.0.tgz`
+تا وقتی روی npm منتشر نشده: `npm i https://github.com/yunessfa/diba-MCP/releases/download/v0.3.1/diba-mcp-0.3.1.tgz`
 
 ## اضافه کردن سرویس جدید
 

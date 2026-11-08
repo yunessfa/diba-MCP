@@ -419,7 +419,7 @@ function mediaInput(id, name, label, kind, description) {
           <button type="button" class="btn" data-pick>${isImage ? "انتخاب عکس" : "انتخاب فایل"}</button>
           <button type="button" class="btn btn-icon btn-quiet" data-clear-media hidden aria-label="حذف فایل">✕</button>
         </div>
-        <span class="hint">لینک بدهید یا فایل را انتخاب کنید یا همین‌جا بکشید و رها کنید${isImage ? " (Ctrl+V هم کار می‌کند)" : ""}. حداکثر ۲۰ مگابایت.</span>
+        <span class="hint">لینک بدهید، فایل را انتخاب کنید، یا آن را هر جای صفحه بکشید و رها کنید${isImage ? " (Ctrl+V هم کار می‌کند)" : ""}. حداکثر ۲۰ مگابایت.</span>
       </div>
       <input type="file" hidden data-file ${isImage ? 'accept="image/*"' : ""}>
     </div>
@@ -484,29 +484,61 @@ function bindMediaFields(root) {
       if (isImage && /^https?:\/\/\S+$/i.test(v)) showImg(v);
       else showIcon();
     });
-    box.addEventListener("dragover", (e) => { e.preventDefault(); box.classList.add("drag"); });
-    box.addEventListener("dragleave", () => box.classList.remove("drag"));
-    box.addEventListener("drop", (e) => {
-      e.preventDefault();
-      box.classList.remove("drag");
-      const f = e.dataTransfer.files[0];
-      if (f) useFile(f);
-      else {
-        const url = e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text/plain");
-        if (url) { reset(); input.value = url.trim(); input.dispatchEvent(new Event("input")); }
-      }
-    });
-    if (isImage) {
-      root.addEventListener("paste", (e) => {
-        const item = [...(e.clipboardData?.items ?? [])].find((i) => i.type.startsWith("image/"));
-        if (!item) return;
-        e.preventDefault();
-        const f = item.getAsFile();
-        useFile(new File([f], f.name && f.name !== "image.png" ? f.name : `clipboard-${Date.now()}.png`, { type: f.type }));
-      });
-    }
+    box._useFile = useFile;
+    box._useUrl = (url) => { reset(); input.value = url.trim(); input.dispatchEvent(new Event("input")); };
   });
 }
+
+// ---------- کشیدن و رها کردن / چسباندن در کل صفحه ----------
+// فایل در هر جای صفحه رها شود به فیلد رسانه‌ی ابزار باز می‌رود، و مرورگر هیچ‌وقت
+// به‌جای ارسال، خود فایل را باز نمی‌کند.
+const draggingFiles = (e) => [...(e.dataTransfer?.types ?? [])].includes("Files");
+let dragDepth = 0;
+const endDrag = () => { dragDepth = 0; document.body.classList.remove("file-drag"); };
+window.addEventListener("dragenter", (e) => {
+  if (!draggingFiles(e)) return;
+  dragDepth++;
+  document.body.classList.add("file-drag");
+});
+window.addEventListener("dragleave", (e) => {
+  if (!draggingFiles(e)) return;
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (!dragDepth) endDrag();
+});
+window.addEventListener("dragover", (e) => {
+  if (draggingFiles(e) || e.target.closest?.(".media-box")) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = document.querySelector(".media-box") ? "copy" : "none";
+  }
+});
+window.addEventListener("drop", (e) => {
+  endDrag();
+  const box = e.target.closest?.(".media-box") ?? document.querySelector(".media-box");
+  const file = e.dataTransfer?.files?.[0];
+  if (file) {
+    e.preventDefault();
+    if (box?._useFile) box._useFile(file);
+    else toast("برای ارسال فایل، اول در «آزمایش ابزارها» یک ابزار ارسال عکس یا فایل را باز کنید", true);
+    return;
+  }
+  // لینک یا عکسی که از یک سایت دیگر کشیده شده
+  if (e.target.closest?.(".media-box") && box?._useUrl) {
+    const url = e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text/plain");
+    if (url && /^https?:\/\//i.test(url.trim())) { e.preventDefault(); box._useUrl(url); }
+  }
+});
+document.addEventListener("dragend", endDrag);
+
+document.addEventListener("paste", (e) => {
+  const box = document.querySelector('.media-box[data-media="image"]') ?? document.querySelector(".media-box");
+  const item = [...(e.clipboardData?.items ?? [])].find((i) => i.kind === "file");
+  if (!box?._useFile || !item) return;
+  if (box.dataset.media === "image" && !item.type.startsWith("image/")) return;
+  e.preventDefault();
+  const f = item.getAsFile();
+  const generic = !f.name || /^image\.\w+$/.test(f.name);
+  box._useFile(generic ? new File([f], `clipboard-${Date.now()}.${(f.type.split("/")[1] || "png").replace("jpeg", "jpg")}`, { type: f.type }) : f);
+});
 
 /** برای نمایش «ورودی JSON»: data URLها کوتاه نشان داده می‌شوند */
 function shortenDataUrls(args) {

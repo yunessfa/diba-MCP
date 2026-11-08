@@ -217,7 +217,14 @@ export function createDibaMcpRouter(engine: DibaMcpEngine, opts: RouterOptions =
     }
     next();
   });
-  router.use(express.static(opts.publicDir ?? defaultPublic, { index: "index.html", maxAge: "1h" }));
+  // no-cache: مرورگر هر بار با ETag چک می‌کند؛ بعد از آپدیت، نسخه‌ی قدیمی داشبورد نمی‌ماند
+  router.use(
+    express.static(opts.publicDir ?? defaultPublic, {
+      index: "index.html",
+      etag: true,
+      setHeaders: (res) => res.setHeader("Cache-Control", "no-cache"),
+    }),
+  );
 
   return router;
 }
