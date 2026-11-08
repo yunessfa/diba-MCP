@@ -2,7 +2,7 @@ import { z } from "zod";
 import { redact, request } from "../core/http.js";
 import { isUploadable, loadMedia, mediaField } from "../core/media.js";
 import { FormData, netFetch } from "../core/net.js";
-import { defineTool, ProviderError, type ProviderContext, type ProviderDef } from "../core/types.js";
+import { defineTool, ProviderError, type IncomingMessage, type PollResult, type ProviderContext, type ProviderDef } from "../core/types.js";
 import { chatIdOf } from "./telegram-like.js";
 
 /**
@@ -18,6 +18,82 @@ async function call(ctx: ProviderContext, method: string, body: Record<string, u
     throw new ProviderError(`روبیکا: ${data.dev_message ?? data.status}`, data);
   }
   return data?.data ?? data;
+}
+
+// ---------------- دریافت پیام ----------------
+function rubikaChatType(chatId: string): IncomingMessage["chatType"] {
+  if (/^g0/i.test(chatId)) return "group";
+  if (/^c0/i.test(chatId)) return "channel";
+  if (/^[bu]0/i.test(chatId)) return "private";
+  return "unknown";
+}
+
+function rubikaDate(t: unknown): string {
+  const n = Number(t);
+  if (!Number.isFinite(n) || n <= 0) return new Date().toISOString();
+  return new Date(n < 1e12 ? n * 1000 : n).toISOString();
+}
+
+/** update روبیکا (NewMessage، UpdatedMessage، StartedBot، کلیک دکمه) را به پیام یکسان تبدیل می‌کند */
+export function normalizeRubikaUpdate(u: any): IncomingMessage | null {
+  if (!u || typeof u !== "object") return null;
+  const m = u.new_message ?? u.updated_message ?? u.inline_message ?? u;
+  const chatId = String(u.chat_id ?? m.chat_id ?? "");
+  if (!chatId) return null;
+  const started = u.type === "StartedBot";
+  if (!started && !u.new_message && !u.updated_message && !u.inline_message) return null;
+  const fileName: string = m.file?.file_name ?? "";
+  const kind: IncomingMessage["kind"] = started
+    ? "other"
+    : m.aux_data?.button_id
+      ? "button"
+      : m.file
+        ? /\.(jpe?g|png|gif|webp)$/i.test(fileName)
+          ? "photo"
+          : "file"
+        : m.location
+          ? "location"
+          : m.text !== undefined
+            ? "text"
+            : "other";
+  const messageId = String(m.message_id ?? (started ? `start-${m.time ?? u.time ?? Date.now()}` : ""));
+  return {
+    key: `rubika:${chatId}:${messageId}`,
+    provider: "rubika",
+    chatId,
+    chatType: rubikaChatType(chatId),
+    messageId,
+    from: m.sender_id ? { id: String(m.sender_id) } : undefined,
+    text: started ? "/start (ربات را شروع کرد)" : m.text,
+    kind,
+    buttonId: m.aux_data?.button_id,
+    date: rubikaDate(m.time ?? u.time),
+  };
+}
+
+/** عنوان چت‌ها را یک بار از getChat می‌گیرد (update روبیکا اسم ندارد) */
+const titleCache = new Map<string, string | null>();
+async function chatTitle(ctx: ProviderContext, chatId: string): Promise<string | undefined> {
+  const k = `${ctx.config.token.slice(-6)}:${chatId}`;
+  if (titleCache.has(k)) return titleCache.get(k) ?? undefined;
+  try {
+    const r = await call(ctx, "getChat", { chat_id: chatId });
+    const c = r?.chat ?? r;
+    const t = c?.title || [c?.first_name, c?.last_name].filter(Boolean).join(" ") || (c?.username ? `@${c.username}` : "");
+    titleCache.set(k, t || null);
+    return t || undefined;
+  } catch {
+    titleCache.set(k, null);
+    return undefined;
+  }
+}
+
+async function pollRubika(ctx: ProviderContext, cursor: string | undefined): Promise<PollResult> {
+  const r = await call(ctx, "getUpdates", { limit: 100, offset_id: cursor });
+  const list: any[] = Array.isArray(r?.updates) ? r.updates : Array.isArray(r) ? r : [];
+  const messages = list.map(normalizeRubikaUpdate).filter((m): m is IncomingMessage => Boolean(m));
+  for (const m of messages) m.chatTitle = await chatTitle(ctx, m.chatId);
+  return { messages, cursor: r?.next_offset_id ? String(r.next_offset_id) : cursor };
 }
 
 type RubikaFileType = "File" | "Image" | "Video" | "Gif" | "Music" | "Voice";
@@ -81,6 +157,7 @@ export const rubika: ProviderDef = {
     { key: "defaultChatId", label: "چت پیش‌فرض", type: "text", placeholder: "اختیاری" },
   ],
   test: (ctx) => call(ctx, "getMe"),
+  receive: { idleMs: 3000, poll: (ctx, cursor) => pollRubika(ctx, cursor) },
   tools: [
     defineTool({
       name: "rubika_get_me",
@@ -162,13 +239,19 @@ export const rubika: ProviderDef = {
     defineTool({
       name: "rubika_get_updates",
       title: "دریافت پیام‌های جدید",
-      description: "Fetch recent updates (incoming messages) for the Rubika bot.",
+      description:
+        "Read recent incoming messages sent to the Rubika bot (newest first), with chat ids. Use it to find a chat_id or to see what users wrote.",
       input: {
-        limit: z.number().int().min(1).max(100).optional().describe("Max updates, default 20"),
-        offset_id: z.string().optional().describe("Pagination cursor from a previous call (next_offset_id)"),
+        chat_id: z.string().optional().describe("Only messages from this chat"),
+        limit: z.number().int().min(1).max(100).optional().describe("Max messages, default 20"),
       },
       annotations: { readOnlyHint: true, openWorldHint: true },
-      handler: (a, ctx) => call(ctx, "getUpdates", { limit: a.limit ?? 20, offset_id: a.offset_id }),
+      handler: async (a, ctx) => {
+        if (ctx.inbox) return { source: "inbox", messages: ctx.inbox.list({ chatId: a.chat_id, limit: a.limit ?? 20 }) };
+        const r = await pollRubika(ctx, undefined);
+        const messages = r.messages.filter((m) => !a.chat_id || m.chatId === a.chat_id).reverse().slice(0, a.limit ?? 20);
+        return { source: "api", messages };
+      },
     }),
   ],
 };

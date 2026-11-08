@@ -5,10 +5,13 @@ import express, { type NextFunction, type Request, type Response, type Router } 
 import { hashPassword, RateLimiter, safeEqual, SignedSessions, verifyPassword } from "../core/auth.js";
 import { SERVER_VERSION, type DibaMcpEngine } from "../core/engine.js";
 import { runNetcheck } from "../core/netcheck.js";
+import { hintFor, runSelfTest } from "../core/selftest.js";
 
 export interface RouterOptions {
   /** نمایش داشبورد (پیش‌فرض: true). در پروژه‌ی میزبان می‌توانید خاموشش کنید */
   dashboard?: boolean;
+  /** دریافت خودکار پیام‌ها برای سرویس‌هایی که روشن کرده‌اند (پیش‌فرض: true) */
+  inbox?: boolean;
   /** پوشه‌ی فایل‌های داشبورد */
   publicDir?: string;
 }
@@ -85,6 +88,8 @@ export function createDibaMcpRouter(engine: DibaMcpEngine, opts: RouterOptions =
   };
   router.get("/mcp", notAllowed);
   router.delete("/mcp", notAllowed);
+
+  if (opts.inbox !== false) engine.inbox.start();
 
   if (opts.dashboard === false) return router;
 
@@ -179,7 +184,7 @@ export function createDibaMcpRouter(engine: DibaMcpEngine, opts: RouterOptions =
     if (values?.__clear && Array.isArray(values.__clear)) {
       for (const k of values.__clear) if (p.fields.some((f) => f.key === k)) clean[k] = "";
     }
-    engine.store.update(p.id, { enabled: typeof enabled === "boolean" ? enabled : undefined, values: clean });
+    engine.updateProvider(p.id, { enabled: typeof enabled === "boolean" ? enabled : undefined, values: clean });
     res.json(engine.describeProviders().find((x) => x.id === p.id));
   });
 
@@ -198,6 +203,52 @@ export function createDibaMcpRouter(engine: DibaMcpEngine, opts: RouterOptions =
   });
 
   api.get("/netcheck", async (_req, res) => res.json(await runNetcheck(engine)));
+
+  // ---------------- تست کامل ----------------
+  api.post("/providers/:id/selftest", async (req, res) => {
+    try {
+      res.json(await runSelfTest(engine, String(req.params.id), { send: req.body?.send === true, chatId: req.body?.chatId }));
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  api.post("/providers/:id/actions/:name", async (req, res) => {
+    res.json(await engine.runAction(String(req.params.id), String(req.params.name)));
+  });
+
+  // ---------------- صندوق پیام‌ها ----------------
+  api.get("/inbox", (req, res) => {
+    const provider = typeof req.query.provider === "string" ? req.query.provider : undefined;
+    const chat = typeof req.query.chat === "string" ? req.query.chat : undefined;
+    res.json({
+      statuses: engine.inbox.statuses().map((st) => ({ ...st, hint: st.lastError ? hintFor(st.lastError, "receive") : undefined })),
+      chats: engine.inbox.chats(),
+      messages: provider && chat ? engine.inbox.messages(provider, { chatId: chat, limit: 100 }) : [],
+    });
+  });
+
+  api.post("/inbox/:id/receive", (req, res) => {
+    const p = engine.provider(String(req.params.id));
+    if (!p?.receive) return void res.status(400).json({ error: "این پیام‌رسان دریافت پیام را پشتیبانی نمی‌کند" });
+    if (engine.store.receiveFromEnv(p)) return void res.status(400).json({ error: `این تنظیم از env خوانده می‌شود (${p.id.toUpperCase()}_RECEIVE)` });
+    engine.updateProvider(p.id, { receive: req.body?.enabled === true });
+    res.json({ ok: true, status: engine.inbox.statuses().find((s) => s.provider === p.id) });
+  });
+
+  api.post("/inbox/:id/fetch", async (req, res) => {
+    try {
+      res.json({ ok: true, ...(await engine.inbox.fetchOnce(String(req.params.id))) });
+    } catch (err: any) {
+      res.json({ ok: false, error: err.message });
+    }
+  });
+
+  api.delete("/inbox/:id", (req, res) => {
+    if (!engine.provider(String(req.params.id))?.receive) return void res.status(404).json({ error: "پیدا نشد" });
+    engine.inbox.clear(String(req.params.id));
+    res.json({ ok: true });
+  });
 
   api.get("/connection", (_req, res) => {
     res.json({ token: engine.store.mcpToken, fromEnv: engine.store.mcpTokenFromEnv });

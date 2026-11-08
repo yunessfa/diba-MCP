@@ -58,6 +58,11 @@ async function api(path, opts = {}) {
 const icons = {
   overview: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><circle cx="4.5" cy="6" r="1.8"/><circle cx="19.5" cy="6" r="1.8"/><circle cx="4.5" cy="18" r="1.8"/><circle cx="19.5" cy="18" r="1.8"/><path d="M6 7l3.5 3M18 7l-3.5 3M6 17l3.5-3M18 17l-3.5-3"/></svg>',
   providers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v11H9l-5 4z"/></svg>',
+  inbox: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1 2h6l1-2h5"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  cross: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  dash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M7 12h10"/></svg>',
+  send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 4L3 11l7 2 2 7z"/><path d="M10 13l10-9"/></svg>',
   playground: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"/></svg>',
   logs: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h10M4 18h13"/></svg>',
   connect: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 15l6-6M10 6l1-1a4.2 4.2 0 0 1 6 6l-1 1M14 18l-1 1a4.2 4.2 0 0 1-6-6l1-1"/></svg>',
@@ -73,6 +78,7 @@ const icons = {
 const pages = [
   { id: "overview", title: "نمای کلی" },
   { id: "providers", title: "پیام‌رسان‌ها" },
+  { id: "inbox", title: "پیام‌های دریافتی" },
   { id: "playground", title: "آزمایش ابزارها" },
   { id: "logs", title: "گزارش فراخوانی‌ها" },
   { id: "connect", title: "اتصال به هوش مصنوعی" },
@@ -174,7 +180,7 @@ async function render() {
   document.title = `${pages.find((p) => p.id === page).title} — dibaMCP`;
   const main = document.getElementById("main");
   try {
-    await ({ overview: pageOverview, providers: pageProviders, playground: pagePlayground, logs: pageLogs, connect: pageConnect })[page](main, q);
+    await ({ overview: pageOverview, providers: pageProviders, playground: pagePlayground, inbox: pageInbox, logs: pageLogs, connect: pageConnect })[page](main, q);
   } catch (e) {
     if (!(e instanceof AuthError)) main.innerHTML = `<div class="err-box">${esc(e.message)}</div>`;
   }
@@ -283,7 +289,8 @@ function fieldHtml(p, f) {
       <input id="${id}" name="${f.key}" type="password" class="input ltr-input" placeholder="${esc(ph)}" autocomplete="off" ${locked ? "disabled" : ""}>
       <button type="button" class="btn btn-icon btn-quiet" data-reveal="${id}" aria-label="نمایش">${icons.eye}</button></div>${savedHint}</div>`;
   }
-  return `<div class="field">${label}<input id="${id}" name="${f.key}" class="input ${f.type === "url" || /id$/i.test(f.key) ? "ltr-input" : ""}" value="${esc(f.value)}" placeholder="${esc(f.placeholder || f.default || "")}" ${locked ? "disabled" : ""}>${hint}</div>`;
+  const pick = f.key === "defaultChatId" && p.receive?.supported && !locked ? `<span class="hint"><a href="#/inbox?p=${p.id}">انتخاب از پیام‌های دریافتی</a></span>` : "";
+  return `<div class="field">${label}<input id="${id}" name="${f.key}" class="input ${f.type === "url" || /id$/i.test(f.key) ? "ltr-input" : ""}" value="${esc(f.value)}" placeholder="${esc(f.placeholder || f.default || "")}" ${locked ? "disabled" : ""}>${hint}${pick}</div>`;
 }
 
 function provHtml(p) {
@@ -302,6 +309,7 @@ function provHtml(p) {
         <div class="prov-actions">
           <button class="btn btn-primary" type="submit">ذخیره تنظیمات</button>
           ${p.hasTest ? `<button class="btn" type="button" data-test>تست اتصال</button>` : ""}
+          ${p.hasTest ? `<button class="btn" type="button" data-selftest>تست کامل</button>` : ""}
           ${p.fields.some((f) => f.type === "secret" && f.hasValue && !f.fromEnv) ? `<button class="btn btn-quiet btn-danger" type="button" data-clear>حذف توکن</button>` : ""}
         </div>
         <div class="test-out" data-out></div>
@@ -313,6 +321,27 @@ function provHtml(p) {
       </div>
     </div></div></div>
   </article>`;
+}
+
+function selfTestHtml(r) {
+  const icon = { ok: icons.check, fail: icons.cross, skip: icons.dash };
+  const label = { ok: "موفق", fail: "ناموفق", skip: "رد شد" };
+  const failed = r.steps.filter((x) => x.status === "fail").length;
+  return `<div class="st-summary ${r.ok ? "is-ok" : "is-fail"}">
+      <b>${r.ok ? "همه‌ی قدم‌ها گذشت" : `${fa(failed)} قدم ناموفق`}</b>
+      <span>شبکه: ${esc(r.proxy)}</span>
+      <button class="btn" type="button" data-st-copy>کپی گزارش</button>
+    </div>
+    <ol class="st-steps">
+      ${r.steps.map((x) => `<li class="st-${x.status}">
+        <span class="st-icon" role="img" aria-label="${label[x.status]}">${icon[x.status]}</span>
+        <div class="st-body">
+          <div class="st-title"><b>${esc(x.title)}</b>${x.ms ? `<span class="meta">${fa(x.ms)} میلی‌ثانیه</span>` : ""}</div>
+          ${x.detail ? `<div class="st-detail" dir="auto">${esc(x.detail)}</div>` : ""}
+          ${x.hint ? `<div class="st-hint">${esc(x.hint)}</div>` : ""}
+        </div>
+      </li>`).join("")}
+    </ol>`;
 }
 
 async function pageProviders(main, q) {
@@ -351,6 +380,35 @@ async function pageProviders(main, q) {
       out.innerHTML = r.ok
         ? `<div class="result-head"><span class="pill pill-ok">اتصال برقرار است</span><span class="meta">${fa(r.ms)} میلی‌ثانیه</span></div><pre class="json">${jsonHtml(r.result)}</pre>`
         : `<div class="err-box">${esc(r.error)}</div>`;
+    }
+    if (e.target.closest("[data-selftest]")) {
+      const out = card.querySelector("[data-out]");
+      const def = p.fields.find((f) => f.key === "defaultChatId")?.value || "";
+      out.innerHTML = `<div class="selftest">
+        <div class="st-head"><b>تست کامل ${esc(p.nameFa)}</b><span class="hint">شبکه، توکن، چت، ارسال و دریافت را قدم‌به‌قدم بررسی می‌کند.</span></div>
+        <div class="st-opts">
+          <label class="st-send"><span class="switch"><input type="checkbox" data-st-send><span></span></span>پیام و عکس آزمایشی هم بفرستد</label>
+          <input class="input ltr-input" data-st-chat placeholder="${esc(def ? `${def} (default)` : "chat_id مقصد")}" aria-label="چت مقصد">
+          <button class="btn btn-primary" type="button" data-st-run>اجرای تست</button>
+        </div>
+        <div data-st-out></div>
+      </div>`;
+      out.querySelector("[data-st-run]").focus();
+    }
+    const runBtn = e.target.closest("[data-st-run]");
+    if (runBtn) {
+      const box = card.querySelector(".selftest");
+      const stOut = box.querySelector("[data-st-out]");
+      const send = box.querySelector("[data-st-send]").checked;
+      const chatId = box.querySelector("[data-st-chat]").value.trim();
+      stOut.innerHTML = `<div class="st-running"><span class="boot-dot"></span>در حال اجرا… ممکن است تا یک دقیقه طول بکشد.</div>`;
+      try {
+        const r = await busy(runBtn, () => api(`providers/${id}/selftest`, { body: { send, chatId: chatId || undefined } }));
+        stOut.innerHTML = selfTestHtml(r);
+        stOut.querySelector("[data-st-copy]").onclick = () => copy(r.text);
+      } catch (ex) {
+        stOut.innerHTML = `<div class="err-box">${esc(ex.message)}</div>`;
+      }
     }
     const clearBtn = e.target.closest("[data-clear]");
     if (clearBtn && confirm(`توکن ${p.nameFa} حذف شود؟ ابزارهای این پیام‌رسان از مدل جدا می‌شوند.`)) {
@@ -611,6 +669,177 @@ async function pagePlayground(main, q) {
     result.innerHTML = `<div class="result-head"><h2>پاسخ</h2>${r.ok ? '<span class="pill pill-ok">موفق</span>' : '<span class="pill pill-err">ناموفق</span>'}<span class="meta">${fa(r.ms)} میلی‌ثانیه</span></div>
       ${r.ok ? `<pre class="json">${jsonHtml(r.result)}</pre>` : `<div class="err-box">${esc(r.error)}</div>`}`;
     result.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+}
+
+// ---------------------------------------------------------------- inbox
+const chatTypeFa = { private: "خصوصی", group: "گروه", channel: "کانال", unknown: "" };
+const kindFa = { photo: "عکس", file: "فایل", video: "ویدیو", voice: "صوت", location: "موقعیت", button: "دکمه", other: "" };
+
+function receiverHtml(p, st) {
+  if (!st.supported)
+    return `<div class="rcv off"><div class="disc sm" style="background:${p.color}">${esc(p.glyph)}</div><div class="rcv-body"><b>${esc(p.nameFa)}</b><span class="hint">ایتایار دریافت پیام ندارد؛ فقط ارسال به کانال و گروه.</span></div></div>`;
+  const ready = p.ready;
+  let pill, info = "";
+  if (!ready) { pill = '<span class="pill pill-off">توکن ثبت نشده</span>'; info = `<a href="#/providers?open=${p.id}">ثبت توکن</a>`; }
+  else if (st.lastError) { pill = '<span class="pill pill-err">خطا</span>'; info = `<span class="err">${esc(st.lastError)}</span>`; }
+  else if (st.running) { pill = '<span class="pill pill-ok">در حال دریافت</span>'; info = st.lastPollAt ? `آخرین بررسی ${ago(st.lastPollAt)}` : "در حال اتصال…"; }
+  else pill = '<span class="pill pill-off">خاموش</span>';
+  const webhook = /webhook/i.test(st.lastError || "");
+  return `<div class="rcv${st.lastError ? " has-err" : ""}" data-rcv="${p.id}">
+    <div class="disc sm" style="background:${p.color}">${esc(p.glyph)}</div>
+    <div class="rcv-body">
+      <div class="rcv-top"><b>${esc(p.nameFa)}</b>${pill}</div>
+      <span class="hint">${info}</span>
+      ${st.hint ? `<span class="st-hint">${esc(st.hint)}</span>` : ""}
+    </div>
+    <div class="rcv-actions">
+      ${webhook ? `<button class="btn btn-danger" data-action="deleteWebhook">حذف وبهوک</button>` : ""}
+      <button class="btn" data-fetch ${ready ? "" : "disabled"}>بررسی الان</button>
+      <label class="switch" title="دریافت خودکار"><input type="checkbox" data-receive ${st.enabled ? "checked" : ""} ${ready && !p.receive.fromEnv ? "" : "disabled"} aria-label="دریافت خودکار ${esc(p.nameFa)}"><span></span></label>
+    </div>
+  </div>`;
+}
+
+async function pageInbox(main, q) {
+  state.providers = await api("providers");
+  const sel = { p: q.get("p") || "", c: q.get("c") || "" };
+  let data = { statuses: [], chats: [], messages: [] };
+  let lastSig = "";
+
+  main.innerHTML = `${head("پیام‌های دریافتی", "پیام‌هایی که کاربران به ربات‌ها می‌دهند. از اینجا شناسه‌ی چت‌ها را پیدا کنید، چت پیش‌فرض را تعیین کنید و جواب بدهید.")}
+    <section class="receivers" id="rcv"></section>
+    <p class="note rcv-note">«دریافت خودکار» پیام‌های ربات را مرتب می‌خواند و ابزار get_updates مدل هم از همین صندوق جواب می‌دهد. اگر برنامه‌ی دیگری (وبهوک یا ربات دیگر) هم پیام‌های همین ربات را می‌خواند، روشنش نکنید؛ «بررسی الان» هم پیام‌ها را برمی‌دارد.</p>
+    <section class="inbox">
+      <nav class="chat-list" id="chats" aria-label="چت‌ها"></nav>
+      <div class="convo" id="convo"></div>
+    </section>`;
+
+  const provOf = (id) => state.providers.find((x) => x.id === id);
+  const defaultChat = (id) => provOf(id)?.fields.find((f) => f.key === "defaultChatId")?.value || "";
+
+  const drawReceivers = () => {
+    document.getElementById("rcv").innerHTML = data.statuses.map((st) => receiverHtml(provOf(st.provider), st)).join("");
+  };
+
+  const drawChats = () => {
+    const el = document.getElementById("chats");
+    if (!data.chats.length) {
+      el.innerHTML = `<div class="empty"><b>هنوز پیامی نیامده</b>دریافت خودکار را روشن کنید یا «بررسی الان» را بزنید، بعد از گوشی یک پیام به ربات بدهید.</div>`;
+      return;
+    }
+    el.innerHTML = data.chats.map((c) => {
+      const p = provOf(c.provider);
+      const active = c.provider === sel.p && c.chatId === sel.c;
+      const isDef = defaultChat(c.provider) === c.chatId;
+      return `<button class="chat-item" data-p="${c.provider}" data-c="${esc(c.chatId)}" aria-current="${active}">
+        <span class="disc xs" style="background:${p.color}">${esc(p.glyph)}</span>
+        <span class="ci-body">
+          <span class="ci-top"><b dir="auto">${esc(c.title || c.chatId)}</b><span class="meta">${ago(c.lastDate)}</span></span>
+          <span class="ci-sub"><span dir="auto">${esc(c.lastText || "—")}</span></span>
+          <span class="ci-tags">${chatTypeFa[c.type] ? `<i>${chatTypeFa[c.type]}</i>` : ""}${isDef ? "<i class='def'>پیش‌فرض</i>" : ""}<i>${fa(c.count)} پیام</i></span>
+        </span>
+      </button>`;
+    }).join("");
+  };
+
+  const drawConvo = () => {
+    const el = document.getElementById("convo");
+    const chat = data.chats.find((c) => c.provider === sel.p && c.chatId === sel.c);
+    if (!chat) {
+      el.innerHTML = `<div class="empty convo-empty">${icons.inbox}<b>یک چت را انتخاب کنید</b>شناسه‌ی چت، پیام‌ها و ارسال جواب اینجا نمایش داده می‌شود.</div>`;
+      return;
+    }
+    const p = provOf(chat.provider);
+    const isDef = defaultChat(chat.provider) === chat.chatId;
+    const keepDraft = el.querySelector("[data-draft]")?.value ?? "";
+    el.innerHTML = `
+      <header class="convo-head">
+        <div><b dir="auto">${esc(chat.title || chat.chatId)}</b>
+          <div class="convo-id"><span class="meta">${esc(p.nameFa)}${chatTypeFa[chat.type] ? ` · ${chatTypeFa[chat.type]}` : ""} · chat_id</span>
+          <code class="ltr">${esc(chat.chatId)}</code><button class="btn btn-quiet btn-sm" data-copy-id>کپی</button></div>
+        </div>
+        ${isDef ? `<span class="pill pill-ok">چت پیش‌فرض ${esc(p.nameFa)}</span>` : `<button class="btn" data-set-default>تنظیم به‌عنوان چت پیش‌فرض</button>`}
+      </header>
+      <ol class="msgs" id="msgs">
+        ${data.messages.slice().reverse().map((m) => `<li class="msg">
+          <div class="msg-meta">${m.from?.name ? `<b dir="auto">${esc(m.from.name)}</b>` : ""}${m.from?.username ? `<span class="ltr">@${esc(m.from.username)}</span>` : ""}<span>${new Date(m.date).toLocaleString("fa-IR", { hour: "2-digit", minute: "2-digit", month: "short", day: "numeric" })}</span></div>
+          ${kindFa[m.kind] ? `<span class="msg-kind">${kindFa[m.kind]}${m.buttonId ? `: <code class="ltr">${esc(m.buttonId)}</code>` : ""}</span>` : ""}
+          ${m.text ? `<p dir="auto">${esc(m.text)}</p>` : ""}
+        </li>`).join("")}
+      </ol>
+      <form class="composer" data-reply>
+        <textarea class="textarea" data-draft rows="2" dir="auto" placeholder="جواب به ${esc(chat.title || chat.chatId)}…" aria-label="متن جواب"></textarea>
+        <button class="btn btn-primary" type="submit" ${p.ready ? "" : "disabled"}>${icons.send}ارسال</button>
+      </form>`;
+    el.querySelector("[data-draft]").value = keepDraft;
+    const list = document.getElementById("msgs");
+    list.scrollTop = list.scrollHeight;
+  };
+
+  const load = async (force = false) => {
+    const qs = sel.p && sel.c ? `?provider=${encodeURIComponent(sel.p)}&chat=${encodeURIComponent(sel.c)}` : "";
+    data = await api(`inbox${qs}`);
+    const sig = JSON.stringify([data.statuses.map((s) => [s.enabled, s.running, s.lastError, s.received, s.lastPollAt && ago(s.lastPollAt)]), data.chats.map((c) => c.lastDate + c.count), data.messages.length, sel]);
+    drawReceivers();
+    if (force || sig !== lastSig) { drawChats(); drawConvo(); }
+    lastSig = sig;
+  };
+  await load(true);
+  state.timer = setInterval(() => { if (!document.hidden) load().catch(() => {}); }, 4000);
+
+  main.addEventListener("click", async (e) => {
+    const item = e.target.closest(".chat-item");
+    if (item) {
+      sel.p = item.dataset.p; sel.c = item.dataset.c;
+      history.replaceState(null, "", `#/inbox?p=${sel.p}&c=${encodeURIComponent(sel.c)}`);
+      await load(true);
+      return;
+    }
+    const rcv = e.target.closest("[data-rcv]");
+    if (rcv && e.target.closest("[data-fetch]")) {
+      const r = await busy(e.target.closest("[data-fetch]"), () => api(`inbox/${rcv.dataset.rcv}/fetch`, { body: {} }));
+      r.ok ? toast(r.added ? `${fa(r.added)} پیام جدید` : "پیام جدیدی نبود") : toast(r.error, true);
+      return load(true);
+    }
+    const act = e.target.closest("[data-action]");
+    if (rcv && act) {
+      const r = await busy(act, () => api(`providers/${rcv.dataset.rcv}/actions/${act.dataset.action}`, { body: {} }));
+      r.ok ? toast("وبهوک حذف شد؛ دریافت دوباره امتحان می‌شود") : toast(r.error, true);
+      return load(true);
+    }
+    if (e.target.closest("[data-copy-id]")) return copy(sel.c);
+    if (e.target.closest("[data-set-default]")) {
+      const updated = await api(`providers/${sel.p}`, { method: "PUT", body: { values: { defaultChatId: sel.c } } });
+      state.providers = state.providers.map((x) => (x.id === updated.id ? updated : x));
+      toast(`چت پیش‌فرض ${updated.nameFa} تعیین شد`);
+      return load(true);
+    }
+  });
+
+  main.addEventListener("change", async (e) => {
+    const sw = e.target.closest("[data-receive]");
+    if (!sw) return;
+    const id = sw.closest("[data-rcv]").dataset.rcv;
+    try {
+      await api(`inbox/${id}/receive`, { body: { enabled: sw.checked } });
+      toast(sw.checked ? `دریافت خودکار ${provOf(id).nameFa} روشن شد` : `دریافت خودکار ${provOf(id).nameFa} خاموش شد`);
+    } catch (ex) { sw.checked = !sw.checked; toast(ex.message, true); }
+    setTimeout(() => load(true), 600);
+  });
+
+  main.addEventListener("submit", async (e) => {
+    const form = e.target.closest("[data-reply]");
+    if (!form) return;
+    e.preventDefault();
+    const draft = form.querySelector("[data-draft]");
+    const text = draft.value.trim();
+    if (!text) return draft.focus();
+    const r = await busy(form.querySelector("[type=submit]"), () => api(`tools/${sel.p}_send_message/call`, { body: { args: { chat_id: sel.c, text } } }));
+    if (r.ok) { draft.value = ""; toast("ارسال شد"); } else toast(r.error, true);
+  });
+  main.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && e.target.matches("[data-draft]")) e.target.closest("form").requestSubmit();
   });
 }
 

@@ -5,6 +5,8 @@ import type { ProviderDef } from "./types.js";
 
 export interface ProviderState {
   enabled: boolean;
+  /** «دریافت پیام‌ها» روشن است؟ */
+  receive?: boolean;
   values: Record<string, string>;
 }
 
@@ -142,6 +144,16 @@ export class ConfigStore {
     return { values, fromEnv };
   }
 
+  /** دریافت خودکار پیام‌ها (env: BALE_RECEIVE=true) */
+  isReceiving(def: ProviderDef): boolean {
+    const envFlag = this.env[`${def.id.toUpperCase()}_RECEIVE`];
+    if (envFlag !== undefined) return envFlag === "true" || envFlag === "1";
+    return Boolean(this.state(def.id).receive);
+  }
+  receiveFromEnv(def: ProviderDef): boolean {
+    return this.env[`${def.id.toUpperCase()}_RECEIVE`] !== undefined;
+  }
+
   isEnabled(def: ProviderDef): boolean {
     const envFlag = this.env[`${def.id.toUpperCase()}_ENABLED`];
     if (envFlag !== undefined) return envFlag === "true" || envFlag === "1";
@@ -157,9 +169,13 @@ export class ConfigStore {
     return this.isEnabled(def) && this.missingFields(def).length === 0;
   }
 
-  update(id: string, patch: { enabled?: boolean; values?: Record<string, string> }) {
+  update(id: string, patch: { enabled?: boolean; receive?: boolean; values?: Record<string, string> }) {
     const cur = this.state(id);
-    const next: ProviderState = { enabled: patch.enabled ?? cur.enabled, values: { ...cur.values } };
+    const next: ProviderState = {
+      enabled: patch.enabled ?? cur.enabled,
+      receive: patch.receive ?? cur.receive,
+      values: { ...cur.values },
+    };
     for (const [k, v] of Object.entries(patch.values ?? {})) {
       if (v === "") delete next.values[k];
       else next.values[k] = v.trim();

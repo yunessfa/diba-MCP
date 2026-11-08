@@ -5,7 +5,8 @@
  *   npx diba-mcp                 داشبورد + سرور MCP
  *   diba-mcp stdio               برای Claude Desktop
  *   diba-mcp netcheck            تست دسترسی به API پیام‌رسان‌ها
- *   diba-mcp token               نمایش توکن MCP
+ *   diba-mcp selftest bale --send   تست کامل یک پیام‌رسان
+  diba-mcp token               نمایش توکن MCP
  *   diba-mcp reset-password      حذف رمز داشبورد
  */
 import { existsSync } from "node:fs";
@@ -22,6 +23,8 @@ const HELP = `dibaMCP v${SERVER_VERSION} — سرور MCP برای پیام‌ر
   diba-mcp [start]          اجرای داشبورد و اندپوینت MCP (پیش‌فرض)
   diba-mcp stdio            اجرا با stdio برای Claude Desktop و کلاینت‌های مشابه
   diba-mcp netcheck         بررسی دسترسی این سیستم به API بله، ایتا، روبیکا و سروش
+  diba-mcp selftest <id>     تست کامل یک پیام‌رسان (bale، eitaa، rubika، soroush)
+                            --send: پیام و عکس آزمایشی هم بفرستد   --chat <id>: چت مقصد
   diba-mcp token            نمایش توکن اتصال MCP
   diba-mcp reset-password   حذف رمز داشبورد (اجرای بعدی کد راه‌اندازی می‌دهد)
 
@@ -52,6 +55,8 @@ try {
       host: { type: "string", short: "H" },
       data: { type: "string", short: "d" },
       env: { type: "string", short: "e" },
+      send: { type: "boolean" },
+      chat: { type: "string" },
       version: { type: "boolean", short: "v" },
       help: { type: "boolean", short: "h" },
     },
@@ -80,7 +85,7 @@ if (o.env) {
 
 const dataDir = resolve(o.data ?? process.env.DATA_DIR ?? join(homedir(), ".diba-mcp"));
 const command = positionals[0] ?? "start";
-if (positionals.length > 1) fail(`آرگومان اضافه: ${positionals.slice(1).join(" ")}`);
+if (positionals.length > (command === "selftest" ? 2 : 1)) fail(`آرگومان اضافه: ${positionals.slice(1).join(" ")}`);
 
 switch (command) {
   case "start": {
@@ -98,6 +103,22 @@ switch (command) {
     break;
   case "netcheck":
     process.exit((await printNetcheck({ dataDir })) ? 0 : 1);
+  case "selftest": {
+    const { createDibaMcp } = await import("./index.js");
+    const { runSelfTest } = await import("./core/selftest.js");
+    const { engine } = createDibaMcp({ dataDir });
+    const ids = positionals[1] ? [positionals[1]] : engine.providers.filter((p) => engine.store.isReady(p)).map((p) => p.id);
+    if (!ids.length) fail("هیچ پیام‌رسان آماده‌ای نیست. اول در داشبورد توکن ثبت کنید یا نام پیام‌رسان را بدهید.");
+    let allOk = true;
+    for (const id of ids) {
+      if (!engine.provider(id)) fail(`پیام‌رسان ناشناخته: ${id}`);
+      const r = await runSelfTest(engine, id, { send: o.send, chatId: o.chat });
+      console.log(r.text + "\n");
+      allOk &&= r.ok;
+    }
+    engine.inbox.stop();
+    process.exit(allOk ? 0 : 1);
+  }
   case "token": {
     console.log(new ConfigStore(dataDir).mcpToken);
     break;

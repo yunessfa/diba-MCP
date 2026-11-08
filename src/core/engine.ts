@@ -4,10 +4,11 @@ import { redact } from "./http.js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { RateLimiter } from "./auth.js";
+import { Inbox } from "./inbox.js";
 import { CallLogger } from "./logger.js";
 import { summarizeForLog } from "./media.js";
 import { ConfigStore, envKey } from "./store.js";
-import { ProviderError, type ProviderDef, type ToolDef } from "./types.js";
+import { ProviderError, type ProviderContext, type ProviderDef, type ToolDef } from "./types.js";
 
 // پیام‌های خطای اعتبارسنجی به فارسی
 z.config(z.locales.fa());
@@ -44,6 +45,9 @@ export class DibaMcpEngine {
   readonly store: ConfigStore;
   readonly logger: CallLogger;
   readonly providers: ProviderDef[];
+  /** صندوق پیام‌های ورودی */
+  readonly inbox: Inbox;
+  readonly version = SERVER_VERSION;
   /** سقف فراخوانی ابزارهای «نوشتنی» (ارسال پیام و ...) از طرف مدل در دقیقه */
   private writeLimiter: RateLimiter;
   private toolIndex = new Map<string, { tool: ToolDef<any>; provider: ProviderDef }>();
@@ -62,6 +66,37 @@ export class DibaMcpEngine {
         if (this.toolIndex.has(t.name)) throw new Error(`نام ابزار تکراری است: ${t.name}`);
         this.toolIndex.set(t.name, { tool: t, provider: p });
       }
+    }
+    this.inbox = new Inbox(opts.dataDir, this.store, this.providers, (p) => this.contextOf(p));
+  }
+
+  /** چیزی که ابزارها و تست‌ها از یک سرویس می‌بینند */
+  contextOf(p: ProviderDef): ProviderContext {
+    return {
+      config: this.store.resolve(p).values,
+      inbox: this.inbox.isActive(p) ? this.inbox.access(p.id) : undefined,
+    };
+  }
+
+  /** تغییر تنظیمات یک سرویس + هماهنگ کردن دریافت پیام‌ها */
+  updateProvider(id: string, patch: { enabled?: boolean; receive?: boolean; values?: Record<string, string> }) {
+    this.store.update(id, patch);
+    this.inbox.sync();
+  }
+
+  /** اجرای یک کار مدیریتی (فقط از داشبورد) */
+  async runAction(id: string, name: string): Promise<CallResult> {
+    const p = this.provider(id);
+    const action = p?.actions?.[name];
+    const started = performance.now();
+    if (!p || !action) return { ok: false, ms: 0, error: "این کار برای این سرویس تعریف نشده" };
+    if (this.store.missingFields(p).length) return { ok: false, ms: 0, error: "اول توکن را ثبت کنید" };
+    const ctx = this.contextOf(p);
+    try {
+      const result = await action.run(ctx);
+      return { ok: true, ms: Math.round(performance.now() - started), result };
+    } catch (err: any) {
+      return { ok: false, ms: Math.round(performance.now() - started), error: redact(err?.message ?? String(err), Object.values(ctx.config)) };
     }
   }
 
@@ -112,9 +147,10 @@ export class DibaMcpEngine {
       return finish({ ok: false, error: `ورودی نامعتبر — ${msg}` });
     }
 
-    const { values } = this.store.resolve(provider);
+    const ctx = this.contextOf(provider);
+    const values = ctx.config;
     try {
-      const result = await tool.handler(parsed.data, { config: values });
+      const result = await tool.handler(parsed.data, ctx);
       return finish({ ok: true, result });
     } catch (err: any) {
       const msg = err instanceof ProviderError ? err.message : `خطای داخلی: ${err?.message ?? err}`;
@@ -131,9 +167,10 @@ export class DibaMcpEngine {
     if (!p.test) return { ok: false, ms: 0, error: "این سرویس تست اتصال ندارد" };
     const missing = this.store.missingFields(p);
     if (missing.length) return { ok: false, ms: 0, error: `اول این فیلدها را پر کنید: ${missing.join("، ")}` };
-    const { values } = this.store.resolve(p);
+    const ctx = this.contextOf(p);
+    const values = ctx.config;
     try {
-      return { ok: true, ms: ms(), result: await p.test({ config: values }) };
+      return { ok: true, ms: ms(), result: await p.test(ctx) };
     } catch (err: any) {
       return { ok: false, ms: ms(), error: redact(err?.message ?? String(err), Object.values(values)) };
     }
@@ -170,6 +207,26 @@ export class DibaMcpEngine {
           hasDefaultChat: Boolean(this.store.resolve(p).values.defaultChatId),
           tools: p.tools.map((t) => t.name),
         }));
+        return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+      },
+    );
+
+    server.registerTool(
+      "list_chats",
+      {
+        title: "فهرست چت‌ها",
+        description:
+          "List chats (users, groups, channels) that have recently messaged the bots, with their chat_id, title and last message. " +
+          "Use it to find the chat_id to send to. Only works for messengers where 'receive messages' is turned on in the dashboard.",
+        inputSchema: { provider: z.string().optional().describe("Messenger id, e.g. bale or rubika") },
+        annotations: { readOnlyHint: true },
+      },
+      async ({ provider }) => {
+        const statuses = this.inbox.statuses().filter((s) => s.supported && (!provider || s.provider === provider));
+        const data = {
+          receiving: statuses.map((s) => ({ provider: s.provider, enabled: s.enabled })),
+          chats: this.inbox.chats(provider).slice(0, 100),
+        };
         return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
       },
     );
@@ -211,6 +268,12 @@ export class DibaMcpEngine {
         ready: this.store.isReady(p),
         missing: this.store.missingFields(p),
         hasTest: Boolean(p.test),
+        receive: {
+          supported: Boolean(p.receive),
+          enabled: this.store.isReceiving(p),
+          fromEnv: this.store.receiveFromEnv(p),
+        },
+        actions: Object.entries(p.actions ?? {}).map(([name, a]) => ({ name, title: a.title })),
         fields: p.fields.map((f) => ({
           ...f,
           envName: envKey(p.id, f.key),

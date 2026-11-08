@@ -12,6 +12,7 @@ import express from "express";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { createDibaMcp } from "../src/index.js";
+import { runSelfTest } from "../src/core/selftest.js";
 
 const listen = (app: express.Express) =>
   new Promise<{ url: string; close: () => void }>((ok) => {
@@ -20,6 +21,9 @@ const listen = (app: express.Express) =>
 
 // ---------- API جعلی ----------
 const seen: any[] = [];
+const tgUpdates: any[] = [];
+const tgUpdate = (id: number, chat: number, text: string, extra: Record<string, unknown> = {}) =>
+  tgUpdates.push({ update_id: id, message: { message_id: id, date: Math.floor(Date.now() / 1000), text, chat: { id: chat, type: "private", first_name: "مریم", ...extra }, from: { id: chat, first_name: "مریم" } } });
 const mock = express();
 
 /** multipart را به { field: value | {name,type,size,bytes} } تبدیل می‌کند */
@@ -43,7 +47,12 @@ mock.post("/tg/:bot/:method", express.json(), async (req, res) => {
   const body = isMultipart(req) ? await readForm(req) : req.body;
   seen.push({ api: "tg", bot: req.params.bot, method: req.params.method, body });
   if (req.params.bot !== "botGOOD:TOKEN") return void res.status(401).json({ ok: false, description: "Unauthorized" });
-  if (req.params.method === "getMe") return void res.json({ ok: true, result: { id: 1, username: "test_bot" } });
+  if (req.params.method === "getMe") return void res.json({ ok: true, result: { id: 1, username: "test_bot", first_name: "ربات تست" } });
+  if (req.params.method === "getUpdates") {
+    const offset = Number(body.offset ?? 0);
+    return void res.json({ ok: true, result: tgUpdates.filter((u) => u.update_id >= offset) });
+  }
+  if (req.params.method === "getChat") return void res.json({ ok: true, result: { id: body.chat_id, type: "private", first_name: "مریم" } });
   res.json({ ok: true, result: { message_id: 42, chat: { id: body.chat_id }, text: body.text } });
 });
 mock.post("/eitaa/:token/:method", async (req, res) => {
@@ -211,6 +220,56 @@ try {
     assert.ok(logged.length < 200);
   });
 
+  await step("دریافت پیام: get_updates مستقیم وقتی دریافت خاموش است", async () => {
+    tgUpdate(100, 777, "سلام ربات");
+    const r = await call("bale_get_updates", {});
+    const data = JSON.parse(r.content[0].text);
+    assert.equal(data.source, "api");
+    assert.equal(data.messages[0].chatId, "777");
+    assert.equal(data.messages[0].chatTitle, "مریم");
+  });
+
+  await step("دریافت پیام: حلقه‌ی دریافت، صندوق، list_chats و offset", async () => {
+    dibaMcp.engine.inbox.idleMs = 20;
+    dibaMcp.engine.updateProvider("bale", { receive: true });
+    const until = async (cond: () => boolean) => {
+      for (let i = 0; i < 200 && !cond(); i++) await new Promise((r) => setTimeout(r, 15));
+      assert.ok(cond(), "timeout");
+    };
+    await until(() => dibaMcp.engine.inbox.messages("bale").length === 1);
+    tgUpdate(101, 888, "پیام دوم", { first_name: "رضا" });
+    await until(() => dibaMcp.engine.inbox.messages("bale").length === 2);
+    // offset درست جلو رفته: آخرین getUpdates با offset=102
+    const lastPoll = seen.filter((x) => x.method === "getUpdates").at(-1);
+    assert.equal(lastPoll.body.offset, 102);
+    const r = await call("bale_get_updates", { chat_id: "888" });
+    const data = JSON.parse(r.content[0].text);
+    assert.equal(data.source, "inbox");
+    assert.deepEqual(data.messages.map((m: any) => m.text), ["پیام دوم"]);
+    const chats = JSON.parse((await call("list_chats", { provider: "bale" })).content[0].text);
+    assert.deepEqual(chats.chats.map((c: any) => c.chatId).sort(), ["777", "888"]);
+  });
+
+  await step("تست کامل بله: همه‌ی قدم‌ها سبز", async () => {
+    const r = await runSelfTest(dibaMcp.engine, "bale", { send: true });
+    const by = Object.fromEntries(r.steps.map((s) => [s.id, s.status]));
+    assert.deepEqual(by, { config: "ok", network: "ok", auth: "ok", chat: "ok", send_text: "ok", send_photo: "ok", receive: "ok" }, r.text);
+    assert.equal(r.ok, true);
+    assert.match(r.text, /✅ ارسال عکس/);
+    const photo = seen.filter((x) => x.method === "sendPhoto").at(-1);
+    assert.equal(photo.body.photo.type, "image/png");
+    assert.ok(!r.text.includes("GOOD:TOKEN"));
+  });
+
+  await step("تست کامل سروش با توکن اشتباه: خطا + راهنما + بقیه رد می‌شوند", async () => {
+    const r = await runSelfTest(dibaMcp.engine, "soroush", { send: true });
+    const auth = r.steps.find((s) => s.id === "auth")!;
+    assert.equal(auth.status, "fail");
+    assert.match(auth.hint!, /توکن/);
+    assert.ok(r.steps.filter((s) => ["chat", "send_text", "send_photo", "receive"].includes(s.id)).every((s) => s.status === "skip"));
+    assert.equal(r.ok, false);
+  });
+
   await step("ورودی نامعتبر", async () => {
     const r: any = await client.callTool({ name: "bale_send_message", arguments: { text: "" } });
     assert.equal(r.isError, true);
@@ -237,6 +296,7 @@ try {
   });
 
   await client.close();
+  dibaMcp.engine.inbox.stop();
   console.log(`\n  همه‌ی ${passed} تست با موفقیت گذشت ✅`);
 } finally {
   srv.close();

@@ -11,7 +11,7 @@ export interface NetResult {
   error?: string;
 }
 
-async function probe(url: string, timeoutMs: number) {
+export async function probe(url: string, timeoutMs: number) {
   const started = performance.now();
   try {
     const res = await netFetch(url, { method: "GET", signal: AbortSignal.timeout(timeoutMs), redirect: "manual" });
