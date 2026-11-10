@@ -1,14 +1,4 @@
 #!/usr/bin/env node
-/**
- * dibaMCP — خط فرمان
- *
- *   npx diba-mcp                 داشبورد + سرور MCP
- *   diba-mcp stdio               برای Claude Desktop
- *   diba-mcp netcheck            تست دسترسی به API پیام‌رسان‌ها
- *   diba-mcp selftest bale --send   تست کامل یک پیام‌رسان
-  diba-mcp token               نمایش توکن MCP
- *   diba-mcp reset-password      حذف رمز داشبورد
- */
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -75,7 +65,6 @@ if (o.version) {
   process.exit(0);
 }
 
-// متغیرهای محیطی: فایل داده‌شده، یا .env پوشه‌ی جاری
 if (o.env) {
   if (!existsSync(o.env)) fail(`فایل ${o.env} پیدا نشد`);
   process.loadEnvFile(o.env);

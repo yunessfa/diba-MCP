@@ -5,11 +5,6 @@ import { FormData, netFetch } from "../core/net.js";
 import { defineTool, ProviderError, type IncomingMessage, type PollResult, type ProviderContext, type ProviderDef } from "../core/types.js";
 import { chatIdOf } from "./telegram-like.js";
 
-/**
- * روبیکا Bot API نسخه ۳:
- *   {baseUrl}/{token}/{method}   — POST با JSON
- * پاسخ معمولاً به شکل { status: "OK", data: {...} } است.
- */
 async function call(ctx: ProviderContext, method: string, body: Record<string, unknown> = {}) {
   const { token, baseUrl } = ctx.config;
   const clean = Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined && v !== ""));
@@ -20,7 +15,6 @@ async function call(ctx: ProviderContext, method: string, body: Record<string, u
   return data?.data ?? data;
 }
 
-// ---------------- دریافت پیام ----------------
 function rubikaChatType(chatId: string): IncomingMessage["chatType"] {
   if (/^g0/i.test(chatId)) return "group";
   if (/^c0/i.test(chatId)) return "channel";
@@ -34,7 +28,6 @@ function rubikaDate(t: unknown): string {
   return new Date(n < 1e12 ? n * 1000 : n).toISOString();
 }
 
-/** update روبیکا (NewMessage، UpdatedMessage، StartedBot، کلیک دکمه) را به پیام یکسان تبدیل می‌کند */
 export function normalizeRubikaUpdate(u: any): IncomingMessage | null {
   if (!u || typeof u !== "object") return null;
   const m = u.new_message ?? u.updated_message ?? u.inline_message ?? u;
@@ -71,7 +64,6 @@ export function normalizeRubikaUpdate(u: any): IncomingMessage | null {
   };
 }
 
-/** عنوان چت‌ها را یک بار از getChat می‌گیرد (update روبیکا اسم ندارد) */
 const titleCache = new Map<string, string | null>();
 async function chatTitle(ctx: ProviderContext, chatId: string): Promise<string | undefined> {
   const k = `${ctx.config.token.slice(-6)}:${chatId}`;
@@ -98,14 +90,8 @@ async function pollRubika(ctx: ProviderContext, cursor: string | undefined): Pro
 
 type RubikaFileType = "File" | "Image" | "Video" | "Gif" | "Music" | "Voice";
 
-/**
- * آپلود در روبیکا سه مرحله دارد:
- *   ۱. requestSendFile {type}  → upload_url
- *   ۲. POST فایل به upload_url (multipart، فیلد file) → file_id
- *   ۳. sendFile {chat_id, file_id, text}
- */
 async function uploadFile(ctx: ProviderContext, value: string, type: RubikaFileType, opts: { expect?: "image"; filename?: string } = {}) {
-  if (!isUploadable(value)) return value; // file_id موجود
+  if (!isUploadable(value)) return value;
   const media = await loadMedia(value, opts);
   const { upload_url } = await call(ctx, "requestSendFile", { type });
   if (!upload_url) throw new ProviderError("روبیکا آدرس آپلود نداد");

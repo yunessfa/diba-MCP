@@ -10,11 +10,9 @@ import { summarizeForLog } from "./media.js";
 import { ConfigStore, envKey } from "./store.js";
 import { ProviderError, type ProviderContext, type ProviderDef, type ToolDef } from "./types.js";
 
-// پیام‌های خطای اعتبارسنجی به فارسی
 z.config(z.locales.fa());
 
 export const SERVER_NAME = "diba-mcp";
-/** نسخه از package.json خوانده می‌شود (هم در src و هم در dist دو پوشه بالاتر است) */
 export const SERVER_VERSION: string = (() => {
   try {
     return JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version;
@@ -24,7 +22,6 @@ export const SERVER_VERSION: string = (() => {
 })();
 
 export interface EngineOptions {
-  /** پوشه‌ی ذخیره‌ی config.json */
   dataDir: string;
   providers: ProviderDef[];
   env?: NodeJS.ProcessEnv;
@@ -37,18 +34,12 @@ export interface CallResult {
   error?: string;
 }
 
-/**
- * قلب پروژه: نگهداری سرویس‌ها، تنظیمات، لاگ و ساخت سرور MCP.
- * هم نسخه‌ی مستقل (main.ts) و هم پروژه‌ی میزبان از همین کلاس استفاده می‌کنند.
- */
 export class DibaMcpEngine {
   readonly store: ConfigStore;
   readonly logger: CallLogger;
   readonly providers: ProviderDef[];
-  /** صندوق پیام‌های ورودی */
   readonly inbox: Inbox;
   readonly version = SERVER_VERSION;
-  /** سقف فراخوانی ابزارهای «نوشتنی» (ارسال پیام و ...) از طرف مدل در دقیقه */
   private writeLimiter: RateLimiter;
   private toolIndex = new Map<string, { tool: ToolDef<any>; provider: ProviderDef }>();
 
@@ -70,7 +61,6 @@ export class DibaMcpEngine {
     this.inbox = new Inbox(opts.dataDir, this.store, this.providers, (p) => this.contextOf(p));
   }
 
-  /** چیزی که ابزارها و تست‌ها از یک سرویس می‌بینند */
   contextOf(p: ProviderDef): ProviderContext {
     return {
       config: this.store.resolve(p).values,
@@ -78,13 +68,11 @@ export class DibaMcpEngine {
     };
   }
 
-  /** تغییر تنظیمات یک سرویس + هماهنگ کردن دریافت پیام‌ها */
   updateProvider(id: string, patch: { enabled?: boolean; receive?: boolean; values?: Record<string, string> }) {
     this.store.update(id, patch);
     this.inbox.sync();
   }
 
-  /** اجرای یک کار مدیریتی (فقط از داشبورد) */
   async runAction(id: string, name: string): Promise<CallResult> {
     const p = this.provider(id);
     const action = p?.actions?.[name];
@@ -104,12 +92,10 @@ export class DibaMcpEngine {
     return this.providers.find((p) => p.id === id);
   }
 
-  /** ابزارهایی که الان قابل استفاده‌اند (سرویس فعال + تنظیمات کامل) */
   activeTools() {
     return [...this.toolIndex.values()].filter(({ provider }) => this.store.isReady(provider));
   }
 
-  /** اجرای یک ابزار با اعتبارسنجی ورودی و ثبت لاگ */
   async callTool(name: string, rawArgs: unknown, source: "mcp" | "dashboard"): Promise<CallResult> {
     const entry = this.toolIndex.get(name);
     const started = performance.now();
@@ -159,7 +145,6 @@ export class DibaMcpEngine {
     }
   }
 
-  /** پیام‌های ارسالی ربات را در گفتگوی همان چت ثبت می‌کند */
   private recordSent(provider: ProviderDef, toolName: string, args: Record<string, unknown>, result: unknown, source: "mcp" | "dashboard") {
     if (!/_send_/.test(toolName)) return;
     try {
@@ -192,7 +177,6 @@ export class DibaMcpEngine {
     }
   }
 
-  /** تست اتصال یک سرویس (حتی اگر غیرفعال باشد) */
   async testProvider(id: string): Promise<CallResult> {
     const p = this.provider(id);
     const started = performance.now();
@@ -210,11 +194,6 @@ export class DibaMcpEngine {
     }
   }
 
-  /**
-   * یک McpServer تازه با ابزارهای فعال می‌سازد.
-   * در حالت HTTP بدون‌نشست، برای هر درخواست یک نمونه ساخته می‌شود تا تغییر
-   * تنظیمات در داشبورد بلافاصله اعمال شود.
-   */
   createMcpServer(): McpServer {
     const server = new McpServer(
       { name: SERVER_NAME, version: SERVER_VERSION },
@@ -285,7 +264,6 @@ export class DibaMcpEngine {
     return server;
   }
 
-  // ---------- داده برای داشبورد ----------
   describeProviders() {
     return this.providers.map((p) => {
       const { values, fromEnv } = this.store.resolve(p);
@@ -312,7 +290,6 @@ export class DibaMcpEngine {
           ...f,
           envName: envKey(p.id, f.key),
           fromEnv: fromEnv[f.key],
-          // مقدار secret هیچ‌وقت کامل به مرورگر نمی‌رود
           value: f.type === "secret" ? "" : values[f.key] ?? "",
           masked: f.type === "secret" && values[f.key] ? maskSecret(values[f.key]) : "",
           hasValue: Boolean(values[f.key]),

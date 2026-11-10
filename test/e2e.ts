@@ -1,8 +1,3 @@
-/**
- * تست سرتاسری: یک سرور جعلی به‌جای API پیام‌رسان‌ها بالا می‌آورد،
- * سرور diba-mcp را اجرا می‌کند و با کلاینت واقعی MCP ابزارها را صدا می‌زند.
- *   npm test
- */
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -19,7 +14,6 @@ const listen = (app: express.Express) =>
     const s = app.listen(0, "127.0.0.1", () => ok({ url: `http://127.0.0.1:${(s.address() as AddressInfo).port}`, close: () => s.close() }));
   });
 
-// ---------- API جعلی ----------
 const seen: any[] = [];
 const tgUpdates: any[] = [];
 let nextMsgId = 1000;
@@ -27,7 +21,6 @@ const tgUpdate = (id: number, chat: number, text: string, extra: Record<string, 
   tgUpdates.push({ update_id: id, message: { message_id: id, date: Math.floor(Date.now() / 1000), text, chat: { id: chat, type: "private", first_name: "مریم", ...extra }, from: { id: chat, first_name: "مریم" } } });
 const mock = express();
 
-/** multipart را به { field: value | {name,type,size,bytes} } تبدیل می‌کند */
 async function readForm(req: express.Request) {
   const form = await new Request("http://x", { method: "POST", headers: req.headers as any, body: req as any, duplex: "half" } as any).formData();
   const out: Record<string, any> = {};
@@ -38,7 +31,6 @@ async function readForm(req: express.Request) {
 }
 const isMultipart = (req: express.Request) => String(req.headers["content-type"] ?? "").startsWith("multipart/");
 
-// یک PNG کوچک واقعی (۱×۱)
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
 mock.get("/img/cat", (_req, res) => void res.type("image/png").send(PNG));
 mock.get("/go", (_req, res) => void res.redirect(302, "/img/cat"));
@@ -75,9 +67,7 @@ mock.post("/rubika/:token/:method", express.json(), (req, res) => {
 });
 const upstream = await listen(mock);
 
-// ---------- diba-mcp ----------
 const dataDir = mkdtempSync(join(tmpdir(), "diba-mcp-test-"));
-// mock روی 127.0.0.1 است، پس دانلود از آدرس داخلی فقط در تست مجاز می‌شود
 const dibaMcp = createDibaMcp({ dataDir, env: { ALLOW_PRIVATE_MEDIA_URLS: "true" } });
 const { store } = dibaMcp.engine;
 store.update("bale", { enabled: true, values: { token: "GOOD:TOKEN", baseUrl: `${upstream.url}/tg`, defaultChatId: "555" } });
@@ -86,7 +76,7 @@ store.update("eitaa", { enabled: true, values: { token: "e-tok", baseUrl: `${ups
 store.update("rubika", { enabled: true, values: { token: "r-tok", baseUrl: `${upstream.url}/rubika` } });
 
 const app = express();
-app.use("/diba-mcp", dibaMcp.router()); // مثل الحاق به پروژه‌ی میزبان، با پیشوند
+app.use("/diba-mcp", dibaMcp.router());
 const srv = await listen(app);
 const mcpUrl = new URL(`${srv.url}/diba-mcp/mcp`);
 
@@ -163,7 +153,7 @@ try {
     assert.equal(last.body.chat_id, "555");
     assert.equal(last.body.caption, "گربه");
     assert.equal(last.body.photo.type, "image/png");
-    assert.equal(last.body.photo.name, "cat.png"); // پسوند از روی نوع فایل
+    assert.equal(last.body.photo.name, "cat.png");
     assert.ok(last.body.photo.bytes.equals(PNG));
   });
 
@@ -241,7 +231,6 @@ try {
     await until(() => incoming().length === 1);
     tgUpdate(101, 888, "پیام دوم", { first_name: "رضا" });
     await until(() => incoming().length === 2);
-    // offset درست جلو رفته: آخرین getUpdates با offset=102
     const lastPoll = seen.filter((x) => x.method === "getUpdates").at(-1);
     assert.equal(lastPoll.body.offset, 102);
     const r = await call("bale_get_updates", { chat_id: "888" });
@@ -261,16 +250,14 @@ try {
     const photo = out.find((m) => m.kind === "photo" && m.mediaUrl);
     assert.match(photo!.mediaUrl!, /\/go$/);
     assert.ok(!out.some((m) => (m.mediaUrl ?? "").startsWith("data:")), "data URLs are never stored");
-    // از داشبورد به یک چت دیگر
     const r = await dibaMcp.engine.callTool("bale_send_message", { chat_id: "777", text: "جواب از داشبورد" }, "dashboard");
     assert.ok(r.ok);
     const conv = dibaMcp.engine.inbox.messages("bale", { chatId: "777" });
     assert.equal(conv[0].direction, "out");
     assert.equal(conv[0].source, "dashboard");
-    assert.equal(conv[0].chatTitle, "مریم"); // عنوان از پیام‌های قبلی همان چت
+    assert.equal(conv[0].chatTitle, "مریم");
     const chat = dibaMcp.engine.inbox.chats("bale").find((c) => c.chatId === "777")!;
     assert.equal(chat.lastDirection, "out");
-    // ایتا دریافت ندارد ولی پیام‌های ارسالی‌اش در فهرست چت‌ها هست
     assert.ok(dibaMcp.engine.inbox.chats().some((c) => c.provider === "eitaa" && c.chatId === "mychannel"));
   });
 

@@ -1,4 +1,3 @@
-/** اجرای مستقل HTTP (Docker و npm run dev/start) — تنظیمات از env */
 import { existsSync } from "node:fs";
 import { startHttp } from "./server.js";
 

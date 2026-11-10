@@ -4,11 +4,6 @@ import { isUploadable, loadMedia, mediaField } from "../core/media.js";
 import { FormData } from "../core/net.js";
 import { defineTool, ProviderError, type IncomingMessage, type ProviderContext, type ProviderDef } from "../core/types.js";
 
-/**
- * بله و سروش‌پلاس هر دو Bot API شبیه تلگرام دارند:
- *   {baseUrl}/bot{token}/{method}
- * این factory یک provider کامل برای هر دو می‌سازد.
- */
 export interface TelegramLikeOptions {
   id: string;
   name: string;
@@ -42,7 +37,6 @@ function displayName(x: any): string | undefined {
   return x.title || n || (x.username ? `@${x.username}` : undefined);
 }
 
-/** یک update به سبک تلگرام (بله، سروش) را به پیام یکسان تبدیل می‌کند */
 export function normalizeTelegramUpdate(provider: string, u: any): IncomingMessage | null {
   if (!u || typeof u !== "object") return null;
   const cb = u.callback_query;
@@ -98,10 +92,6 @@ export function createTelegramLikeProvider(o: TelegramLikeOptions): ProviderDef 
     return data?.result ?? data;
   }
 
-  /**
-   * ارسال رسانه: لینک و فایل انتخاب‌شده را خود سرور دانلود و به‌صورت multipart آپلود می‌کند
-   * (پیام‌رسان لازم نیست به لینک دسترسی داشته باشد)؛ file_id بدون آپلود فرستاده می‌شود.
-   */
   async function sendMedia(
     ctx: ProviderContext,
     method: string,
@@ -119,7 +109,7 @@ export function createTelegramLikeProvider(o: TelegramLikeOptions): ProviderDef 
   }
 
   const chatId = z.string().optional().describe("Chat/user/channel id. If omitted, the default chat from settings is used.");
-  const p = o.id; // پیشوند نام ابزارها
+  const p = o.id;
 
   return {
     id: o.id,
@@ -226,7 +216,6 @@ export function createTelegramLikeProvider(o: TelegramLikeOptions): ProviderDef 
         },
         annotations: { readOnlyHint: true, openWorldHint: true },
         handler: async (a, ctx) => {
-          // وقتی «دریافت پیام‌ها» روشن است، فقط صندوق getUpdates را مصرف می‌کند
           if (ctx.inbox) return { source: "inbox", messages: ctx.inbox.list({ chatId: a.chat_id, limit: a.limit ?? 20 }) };
           const updates = await call(ctx, "getUpdates", { limit: 100, timeout: 0 });
           const messages = (Array.isArray(updates) ? updates : [])

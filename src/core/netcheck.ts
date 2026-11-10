@@ -22,10 +22,6 @@ export async function probe(url: string, timeoutMs: number) {
   }
 }
 
-/**
- * بررسی می‌کند سرور فعلی (مثلاً سرور آلمان) به API هر سرویس دسترسی دارد یا نه.
- * هر پاسخ HTTP (حتی 404) یعنی مسیر شبکه باز است.
- */
 export async function runNetcheck(engine: DibaMcpEngine, timeoutMs = 10_000) {
   const targets = engine.providers.map((p) => {
     const base = engine.store.resolve(p).values.baseUrl || p.fields.find((f) => f.key === "baseUrl")?.default || "";

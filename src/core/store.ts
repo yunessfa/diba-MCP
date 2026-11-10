@@ -5,7 +5,6 @@ import type { ProviderDef } from "./types.js";
 
 export interface ProviderState {
   enabled: boolean;
-  /** «دریافت پیام‌ها» روشن است؟ */
   receive?: boolean;
   values: Record<string, string>;
 }
@@ -14,23 +13,16 @@ export interface StoredConfig {
   version: 1;
   mcpToken: string;
   admin?: { salt: string; hash: string };
-  /** کلید امضای کوکی نشست داشبورد */
   sessionSecret: string;
-  /** با هر خروج یا تغییر رمز زیاد می‌شود و همه‌ی نشست‌های قبلی باطل می‌شوند */
   sessionEpoch: number;
   providers: Record<string, ProviderState>;
 }
 
-/** نام متغیر محیطی برای هر فیلد: BALE_TOKEN ، RUBIKA_BASE_URL ، ... */
 export function envKey(providerId: string, fieldKey: string): string {
   const snake = fieldKey.replace(/([a-z0-9])([A-Z])/g, "$1_$2");
   return `${providerId}_${snake}`.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
 }
 
-/**
- * ذخیره‌سازی تنظیمات در یک فایل JSON (data/config.json).
- * مقادیر env همیشه بر مقادیر فایل اولویت دارند.
- */
 export class ConfigStore {
   private data: StoredConfig;
   private file: string;
@@ -54,14 +46,12 @@ export class ConfigStore {
         const parsed = JSON.parse(readFileSync(this.file, "utf8"));
         const merged: StoredConfig = { ...defaults(), ...parsed };
         if (!merged.mcpToken) merged.mcpToken = newToken();
-        // فایل‌های نسخه‌ی قبل این فیلدها را نداشتند
         if (!parsed.sessionSecret || !parsed.mcpToken) {
           this.data = merged;
           this.persist();
         }
         return merged;
       } catch (err) {
-        // فایل خراب را دور نمی‌ریزیم؛ کنارش نگه می‌داریم
         const backup = `${this.file}.corrupt-${Date.now()}`;
         copyFileSync(this.file, backup);
         console.error(`[diba-mcp] config.json خراب بود؛ نسخه‌ی خراب در ${backup} ذخیره شد و فایل تازه ساخته شد`, err);
@@ -78,7 +68,6 @@ export class ConfigStore {
     renameSync(tmp, this.file);
   }
 
-  // ---------- توکن MCP ----------
   get mcpToken(): string {
     return this.env.MCP_TOKEN || this.data.mcpToken;
   }
@@ -91,7 +80,6 @@ export class ConfigStore {
     return this.data.mcpToken;
   }
 
-  // ---------- ادمین ----------
   get admin() {
     return this.data.admin;
   }
@@ -101,32 +89,27 @@ export class ConfigStore {
     this.persist();
   }
 
-  /** حذف رمز ادمین؛ اجرای بعدی دوباره «کد راه‌اندازی» می‌دهد */
   clearAdmin() {
     delete this.data.admin;
     this.data.sessionEpoch++;
     this.persist();
   }
 
-  // ---------- نشست‌ها ----------
   get sessionSecret(): string {
     return this.data.sessionSecret;
   }
   get sessionEpoch(): number {
     return this.data.sessionEpoch;
   }
-  /** همه‌ی نشست‌های داشبورد را باطل می‌کند */
   bumpSessionEpoch() {
     this.data.sessionEpoch++;
     this.persist();
   }
 
-  // ---------- سرویس‌ها ----------
   state(id: string): ProviderState {
     return this.data.providers[id] ?? { enabled: false, values: {} };
   }
 
-  /** مقدار نهایی هر فیلد + اینکه از env آمده یا نه */
   resolve(def: ProviderDef): { values: Record<string, string>; fromEnv: Record<string, boolean> } {
     const st = this.state(def.id);
     const values: Record<string, string> = {};
@@ -144,7 +127,6 @@ export class ConfigStore {
     return { values, fromEnv };
   }
 
-  /** دریافت خودکار پیام‌ها (env: BALE_RECEIVE=true) */
   isReceiving(def: ProviderDef): boolean {
     const envFlag = this.env[`${def.id.toUpperCase()}_RECEIVE`];
     if (envFlag !== undefined) return envFlag === "true" || envFlag === "1";

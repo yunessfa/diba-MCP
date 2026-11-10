@@ -63,7 +63,6 @@ describe("normalizeRubikaUpdate", () => {
   });
 });
 
-// ---------------- صندوق با یک پیام‌رسان ساختگی ----------------
 function fakeProvider(script: Array<IncomingMessage[] | Error>) {
   const calls: Array<string | undefined> = [];
   let i = 0;
@@ -117,13 +116,13 @@ describe("Inbox", () => {
     const e = new DibaMcpEngine({ dataDir: dir, providers: [p], env: {} });
     e.updateProvider("fake", { enabled: true, values: { token: "T" } });
     assert.equal((await e.inbox.fetchOnce("fake")).added, 2);
-    assert.equal((await e.inbox.fetchOnce("fake")).added, 1); // msg(2) تکراری
+    assert.equal((await e.inbox.fetchOnce("fake")).added, 1);
     assert.deepEqual(calls, [undefined, "1"]);
     assert.deepEqual(e.inbox.messages("fake").map((m) => m.messageId), ["3", "2", "1"]);
     const chats = e.inbox.chats();
     assert.equal(chats.length, 2);
     assert.equal(chats.find((c) => c.chatId === "c1")!.count, 2);
-    e.inbox.stop(); // flush
+    e.inbox.stop();
 
     const e2 = new DibaMcpEngine({ dataDir: dir, providers: [p], env: {} });
     assert.equal(e2.inbox.messages("fake", { chatId: "c1" }).length, 2);

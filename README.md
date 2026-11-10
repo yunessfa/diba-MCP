@@ -1,229 +1,200 @@
-# dibaMCP
+<p align="center">
+  <img src="https://raw.githubusercontent.com/yunessfa/diba-MCP/main/docs/banner.png" alt="dibaMCP" width="100%">
+</p>
 
-سرور MCP برای وصل کردن سرویس‌های ایرانی به مدل‌های هوش مصنوعی (Claude، Cursor و هر کلاینت MCP دیگر)، همراه با داشبورد فارسی برای مدیریت.
+<p align="center">
+  <a href="https://github.com/yunessfa/diba-MCP/releases"><img src="https://img.shields.io/github/v/release/yunessfa/diba-MCP?color=1b64fe&label=release" alt="release"></a>
+  <a href="https://github.com/yunessfa/diba-MCP/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/yunessfa/diba-MCP/ci.yml?branch=main&label=tests&color=1b64fe" alt="tests"></a>
+  <img src="https://img.shields.io/badge/node-%E2%89%A5%2022.19-1b64fe" alt="node">
+  <img src="https://img.shields.io/badge/MCP-Streamable%20HTTP%20%2B%20stdio-1b64fe" alt="mcp">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-1b64fe" alt="license"></a>
+</p>
 
-**مرحله‌ی ۱ (همین نسخه):** پیام‌رسان‌ها — بله، ایتا، روبیکا، سروش‌پلاس
+<p align="center">
+  <b>English</b> · <a href="README.fa.md">فارسی</a>
+</p>
 
-## نصب و اجرا
+<br>
 
-پیش‌نیاز: Node.js نسخه‌ی ۲۲.۱۹ یا جدیدتر (یا فقط Docker).
+**dibaMCP** is a [Model Context Protocol](https://modelcontextprotocol.io) server that lets Claude, Cursor and any other MCP client send and read messages on Iranian messengers. It ships with a Persian dashboard for managing bots, testing tools and following conversations.
 
-**با npx — بدون نصب:**
+<p align="center">
+  <img src="https://raw.githubusercontent.com/yunessfa/diba-MCP/main/docs/screenshots/overview.jpg" alt="Dashboard overview" width="92%">
+</p>
+
+## Features
+
+| | |
+|---|---|
+| **Four messengers** | Bale, Eitaa, Rubika and Soroush Plus: text, photos, files and location |
+| **Inbox** | Incoming and outgoing messages per chat, one-click `chat_id`, quick reply |
+| **Media from anywhere** | Send by link, by `file_id`, or drop a file into the dashboard |
+| **Full self-test** | Network, token, chat, send and receive checked step by step, with hints for each failure |
+| **Runs outside Iran** | SOCKS5 / HTTP proxy support and a reachability check for every API |
+| **Two transports** | Streamable HTTP for remote clients, stdio for Claude Desktop |
+| **Safe by default** | Hashed admin password, signed sessions, rate limits, tokens never leave the server |
+| **Embeddable** | Mount it as an Express router inside your own app |
+
+## Quick start
+
+Requires Node.js 22.19 or newer.
 
 ```bash
-npx diba-mcp
-```
-
-**نصب سراسری:**
-
-```bash
-npm install -g diba-mcp
+npm i -g https://github.com/yunessfa/diba-MCP/releases/download/v0.5.0/diba-mcp-0.5.0.tgz
 diba-mcp
 ```
 
-> تا قبل از انتشار روی npm، از فایل آماده‌ی آخرین [Release](https://github.com/yunessfa/diba-MCP/releases) نصب کنید:
-> `npm i -g https://github.com/yunessfa/diba-MCP/releases/download/v0.4.1/diba-mcp-0.4.1.tgz`
+Open **http://127.0.0.1:3790**. On first run a six-character setup code is printed in the terminal; use it to create the dashboard password. Then add your bot tokens under *Messengers* and copy the MCP endpoint from *Connect*.
 
-**با Docker:**
+<details>
+<summary><b>Docker</b></summary>
 
 ```bash
 docker run -d --name diba-mcp -p 127.0.0.1:3790:3790 \
-  -e ADMIN_PASSWORD=your-password \
+  -e ADMIN_PASSWORD=change-me \
   -v diba-mcp-data:/app/data \
   ghcr.io/yunessfa/diba-mcp:latest
 ```
 
-بعد مرورگر را باز کنید: **http://127.0.0.1:3790**
+A `docker-compose.yml` with optional HTTPS (Caddy) is included. See [DEPLOY.md](DEPLOY.md).
+</details>
 
-بار اول (اگر `ADMIN_PASSWORD` نداده باشید) یک **کد راه‌اندازی** شش‌حرفی در ترمینال چاپ می‌شود. با آن در داشبورد رمز بسازید.
-بعد در «پیام‌رسان‌ها» توکن ربات‌ها را ثبت کنید و از «اتصال به هوش مصنوعی» آدرس و توکن MCP را بردارید.
-
-### دستورهای CLI
-
-| دستور | کار |
-|---|---|
-| `diba-mcp` | داشبورد + اندپوینت MCP |
-| `diba-mcp stdio` | اجرا با stdio برای Claude Desktop |
-| `diba-mcp netcheck` | آیا این سیستم به API بله، ایتا، روبیکا و سروش می‌رسد؟ |
-| `diba-mcp selftest bale --send` | تست کامل یک پیام‌رسان (بدون نام: همه‌ی پیام‌رسان‌های آماده)؛ `--chat <id>` چت مقصد |
-| `diba-mcp token` | نمایش توکن اتصال MCP |
-| `diba-mcp reset-password` | حذف رمز داشبورد (اجرای بعدی کد راه‌اندازی می‌دهد) |
-
-گزینه‌ها: `--port 8080`، `--host 0.0.0.0`، `--data /path` (پیش‌فرض `~/.diba-mcp`)، `--env file.env`، `--help`
-
-**Claude Desktop** (`claude_desktop_config.json`):
-
-```json
-{ "mcpServers": { "diba-mcp": { "command": "npx", "args": ["-y", "diba-mcp", "stdio"] } } }
-```
-
-### توسعه روی همین ریپو
-
-| دستور | کار |
-|---|---|
-| `npm install` و `npm run dev` | اجرای توسعه با ری‌لود خودکار (داده در `./data`) |
-| `npm run cli -- <دستور>` | اجرای CLI از روی سورس |
-| `npm run build` و `npm start` | ساخت و اجرای نسخه‌ی production |
-| `npm test` | همه‌ی تست‌ها (واحد + سرتاسری) |
-| `npm run typecheck` | بررسی تایپ‌ها |
-| `npm run netcheck` | بررسی دسترسی به API پیام‌رسان‌ها |
-
-### انتشار نسخه‌ی جدید
+<details>
+<summary><b>From source</b></summary>
 
 ```bash
-npm version patch --no-git-tag-version   # یا minor / major
-git commit -am "v0.2.1" && git push
+git clone https://github.com/yunessfa/diba-MCP.git
+cd diba-MCP
+npm ci
+cp .env.example .env
+npm run dev
+```
+</details>
+
+## Connect an AI client
+
+**Claude Code**
+
+```bash
+claude mcp add --transport http diba-mcp http://127.0.0.1:3790/mcp \
+  --header "Authorization: Bearer <MCP_TOKEN>"
 ```
 
-بعد در گیت‌هاب: **Actions ← Release ← Run workflow**. (push یک تگ `vX.Y.Z` هم همین کار را می‌کند.)
-GitHub Actions این‌ها را می‌سازد: ایمیج Docker با شماره‌ی نسخه، یک GitHub Release با فایل نصب `.tgz`، و اگر secret به اسم `NPM_TOKEN` در ریپو تعریف شده باشد، انتشار روی npm.
+**Cursor and other JSON-configured clients**
 
-> نصب مستقیم از `github:yunessfa/diba-MCP` پشتیبانی نمی‌شود (npm هنگام نصب سراسری از git ابزار build را نصب نمی‌کند)؛ از فایل Release یا npm استفاده کنید.
-
-## ساختار
-
-```
-src/
-├─ core/
-│  ├─ types.ts        # ProviderDef و ToolDef — قرارداد هر سرویس
-│  ├─ engine.ts       # قلب پروژه: اجرای ابزار، اعتبارسنجی، لاگ، ساخت McpServer
-│  ├─ store.ts        # تنظیمات در data/config.json (env اولویت دارد)
-│  ├─ http.ts         # fetch با timeout و پیام خطای فارسی، پاک کردن توکن از خطاها
-│  ├─ auth.ts         # رمز ادمین (scrypt)، نشست امضاشده (HMAC)، محدودکننده‌ی نرخ
-│  ├─ net.ts          # همه‌ی درخواست‌های بیرونی + پراکسی SOCKS/HTTP
-│  ├─ netcheck.ts     # تست دسترسی سرور به API پیام‌رسان‌ها
-│  └─ logger.ts       # لاگ فراخوانی‌ها: حافظه + فایل روزانه در data/logs
-├─ providers/
-│  ├─ telegram-like.ts  # factory مشترک بله و سروش‌پلاس (Bot API شبیه تلگرام)
-│  ├─ bale.ts  soroush.ts  eitaa.ts  rubika.ts
-│  └─ index.ts          # فهرست سرویس‌ها
-├─ http/router.ts     # express.Router: /mcp + /api + داشبورد
-├─ index.ts           # API کتابخانه برای الحاق
-├─ cli.ts             # خط فرمان diba-mcp
-├─ server.ts          # راه‌اندازهای HTTP / stdio / netcheck
-├─ main.ts            # اجرای HTTP از روی env (Docker، npm run dev)
-└─ stdio.ts           # اجرای stdio
-public/               # داشبورد (HTML/CSS/JS ساده، بدون build)
-test/
-├─ unit/             # تست‌های واحد (auth، store، net، engine)
-└─ e2e.ts            # تست سرتاسری با کلاینت واقعی MCP
+```json
+{
+  "mcpServers": {
+    "diba-mcp": {
+      "url": "http://127.0.0.1:3790/mcp",
+      "headers": { "Authorization": "Bearer <MCP_TOKEN>" }
+    }
+  }
+}
 ```
 
-## ابزارها
+**Claude Desktop (stdio)**
 
-| پیام‌رسان | ابزارها |
+```json
+{ "mcpServers": { "diba-mcp": { "command": "diba-mcp", "args": ["stdio"] } } }
+```
+
+The token is shown on the *Connect* page, or run `diba-mcp token`.
+
+## Screenshots
+
+| Inbox | Tool playground |
 |---|---|
-| بله | `bale_get_me` `bale_send_message` `bale_send_photo` `bale_send_document` `bale_get_chat` `bale_get_updates` |
-| سروش‌پلاس | `soroush_get_me` `soroush_send_message` `soroush_send_photo` `soroush_send_document` `soroush_get_chat` `soroush_get_updates` |
-| ایتا | `eitaa_get_me` `eitaa_send_message` `eitaa_send_photo` `eitaa_send_file` |
-| روبیکا | `rubika_get_me` `rubika_send_message` `rubika_send_photo` `rubika_send_file` `rubika_send_location` `rubika_get_chat` `rubika_get_updates` |
-| همه | `list_services` `list_chats` |
+| <img src="https://raw.githubusercontent.com/yunessfa/diba-MCP/main/docs/screenshots/inbox.jpg" alt="Inbox"> | <img src="https://raw.githubusercontent.com/yunessfa/diba-MCP/main/docs/screenshots/playground.jpg" alt="Playground"> |
+| **Messengers and self-test** | **Dark theme** |
+| <img src="https://raw.githubusercontent.com/yunessfa/diba-MCP/main/docs/screenshots/providers.jpg" alt="Messengers"> | <img src="https://raw.githubusercontent.com/yunessfa/diba-MCP/main/docs/screenshots/dark.jpg" alt="Dark theme"> |
 
-**ارسال عکس و فایل:** ورودی هر ابزار رسانه‌ای می‌تواند لینک عمومی، فایل انتخاب‌شده از دستگاه (در داشبورد: دکمه، کشیدن و رها کردن، یا Ctrl+V)، یا `file_id` قبلی همان پیام‌رسان باشد. لینک‌ها را خود سرور دانلود و آپلود می‌کند، پس لازم نیست پیام‌رسان به آن لینک دسترسی داشته باشد. حداکثر حجم ۲۰ مگابایت.
-برای امنیت، دانلود از آدرس‌های داخلی (localhost، شبکه‌ی خصوصی، metadata ابری) مسدود است؛ اگر عمداً لازم دارید: `ALLOW_PRIVATE_MEDIA_URLS=true`.
+## Tools
 
-اگر برای سرویسی «چت پیش‌فرض» تعیین کنید، `chat_id` اختیاری می‌شود و مدل می‌تواند فقط با `text` پیام بفرستد.
+| Messenger | Tools |
+|---|---|
+| Bale | `bale_get_me` `bale_send_message` `bale_send_photo` `bale_send_document` `bale_get_chat` `bale_get_updates` |
+| Soroush Plus | `soroush_get_me` `soroush_send_message` `soroush_send_photo` `soroush_send_document` `soroush_get_chat` `soroush_get_updates` |
+| Eitaa | `eitaa_get_me` `eitaa_send_message` `eitaa_send_photo` `eitaa_send_file` |
+| Rubika | `rubika_get_me` `rubika_send_message` `rubika_send_photo` `rubika_send_file` `rubika_send_location` `rubika_get_chat` `rubika_get_updates` |
+| All | `list_services` `list_chats` |
 
-## پیام‌های دریافتی و پیدا کردن chat_id
+Set a default chat for a messenger and `chat_id` becomes optional. Eitaa (through Eitaayar) can only post to channels and groups and cannot receive messages.
 
-در داشبورد، صفحه‌ی **«پیام‌های دریافتی»**:
+## CLI
 
-1. برای بله، روبیکا یا سروش «دریافت خودکار» را روشن کنید (یا یک بار «بررسی الان» را بزنید).
-2. از گوشی یک پیام به ربات بدهید. برای کانال: ربات را ادمین کنید و یک پست بگذارید.
-3. چت در فهرست ظاهر می‌شود: شناسه‌اش را کپی کنید، «تنظیم به‌عنوان چت پیش‌فرض» را بزنید یا همان‌جا جواب بدهید.
+| Command | Description |
+|---|---|
+| `diba-mcp` | Start the dashboard and the MCP endpoint |
+| `diba-mcp stdio` | Run over stdio |
+| `diba-mcp selftest [id] [--send] [--chat <id>]` | Run the full self-test |
+| `diba-mcp netcheck` | Check whether this machine can reach each messenger API |
+| `diba-mcp token` | Print the MCP token |
+| `diba-mcp reset-password` | Clear the dashboard password |
 
-پیام‌هایی که خود ربات می‌فرستد (از داشبورد، از طرف هوش مصنوعی یا در تست کامل) هم در همان گفتگو، سمت دیگر و با رنگ متفاوت نمایش داده می‌شوند.
+Options: `--port`, `--host`, `--data <dir>` (default `~/.diba-mcp`), `--env <file>`.
 
-وقتی دریافت خودکار روشن است، ابزار `*_get_updates` مدل از همین صندوق جواب می‌دهد و `list_chats` فهرست چت‌ها را به مدل می‌دهد. پیام‌ها در `data/inbox` ذخیره می‌شوند (۵۰۰ پیام آخر هر پیام‌رسان).
-از env هم می‌شود روشنش کرد: `BALE_RECEIVE=true`.
+## Configuration
 
-> فقط یک برنامه باید پیام‌های یک ربات را بخواند. اگر روی ربات وبهوک تنظیم شده یا برنامه‌ی دیگری با همان توکن کار می‌کند، دریافت خودکار را روشن نکنید. خطای وبهوک در همان صفحه با دکمه‌ی «حذف وبهوک» نمایش داده می‌شود.
-> ایتایار دریافت پیام ندارد.
+Everything can be set from the dashboard. Environment variables take priority and lock the matching field.
 
-## تست کامل
-
-در «پیام‌رسان‌ها» هر سرویس دکمه‌ی **«تست کامل»** دارد (یا `diba-mcp selftest`). قدم‌به‌قدم بررسی می‌کند:
-تنظیمات ← دسترسی شبکه ← توکن ← دسترسی به چت ← ارسال متن ← ارسال عکس ← دریافت پیام.
-برای هر خطا یک راهنمای فارسی نشان می‌دهد و با «کپی گزارش» نتیجه را به‌صورت متن (بدون توکن) برمی‌دارید.
-
-**محدودیت‌ها:** ایتایار فقط به کانال/گروه ارسال می‌کند و دریافت پیام ندارد. `get_updates` در بله و سروش وقتی webhook تنظیم شده باشد کار نمی‌کند.
-
-## تنظیمات امنیت و محدودیت‌ها
-
-| متغیر | پیش‌فرض | کار |
+| Variable | Default | Description |
 |---|---|---|
-| `MCP_RATE_LIMIT` | `120` | حداکثر درخواست به `/mcp` در دقیقه برای هر IP |
-| `MCP_WRITE_LIMIT` | `30` | حداکثر فراخوانی ابزارهای ارسالی (پیام، عکس، ...) از طرف مدل در دقیقه — جلوی ارسال انبوه ناخواسته را می‌گیرد |
-| `LOG_RETENTION_DAYS` | `14` | فایل‌های لاگ قدیمی‌تر پاک می‌شوند |
-| `LOG_TO_FILE` | `true` | `false` = لاگ فقط در حافظه |
-| `UPSTREAM_TIMEOUT_MS` | `20000` | سقف انتظار برای جواب API پیام‌رسان‌ها |
+| `ADMIN_PASSWORD` | | Dashboard password (otherwise created with the setup code) |
+| `MCP_TOKEN` | generated | Bearer token for MCP clients |
+| `PORT` / `HOST` | `3790` / `127.0.0.1` | Listen address |
+| `DATA_DIR` | `./data` | Config, logs and inbox |
+| `SOCKS_PROXY` / `HTTPS_PROXY` | | Route messenger traffic through a proxy |
+| `<ID>_TOKEN`, `<ID>_ENABLED`, `<ID>_RECEIVE`, `<ID>_DEFAULT_CHAT_ID` | | Per messenger: `BALE`, `EITAA`, `RUBIKA`, `SOROUSH` |
+| `MCP_RATE_LIMIT` | `120` | Requests per minute to `/mcp`, per IP |
+| `MCP_WRITE_LIMIT` | `30` | Send-type tool calls per minute from the model |
+| `LOG_RETENTION_DAYS` | `14` | Days of call logs to keep |
+| `ALLOW_PRIVATE_MEDIA_URLS` | `false` | Allow media downloads from internal addresses |
 
-نشست داشبورد کوکی امضاشده است و با ری‌استارت سرور از بین نمی‌رود. «خروج» همه‌ی نشست‌ها را باطل می‌کند.
-
-## الحاق به پروژه‌ی دیگر
+## Use as a library
 
 ```js
 import express from "express";
-import { createDibaMcp } from "diba-mcp";   // npm i diba-mcp
+import { createDibaMcp } from "diba-mcp";
 
 const app = express();
-const dibaMcp = createDibaMcp({ dataDir: "./data/diba-mcp" });
+const diba = createDibaMcp({ dataDir: "./data/diba" });
 
-app.use("/diba-mcp", dibaMcp.router());                  // داشبورد + /diba-mcp/mcp
-// app.use("/diba-mcp", dibaMcp.router({ dashboard: false }));  // فقط اندپوینت MCP
+app.use("/diba", diba.router());
 
-// استفاده‌ی مستقیم از کد، بدون مدل:
-await dibaMcp.engine.callTool("eitaa_send_message", { text: "سفارش جدید" }, "dashboard");
+await diba.engine.callTool("bale_send_message", { text: "New order received" }, "dashboard");
 ```
 
-تا وقتی روی npm منتشر نشده: `npm i https://github.com/yunessfa/diba-MCP/releases/download/v0.4.1/diba-mcp-0.4.1.tgz`
+Adding a messenger or any other service is one file in `src/providers/` that exports a `ProviderDef`; the settings form, playground and MCP tools are generated from it.
 
-## اضافه کردن سرویس جدید
-
-یک فایل در `src/providers/` بسازید:
-
-```ts
-import { z } from "zod";
-import { defineTool, type ProviderDef } from "../core/types.js";
-import { request } from "../core/http.js";
-
-export const kavenegar: ProviderDef = {
-  id: "kavenegar", name: "Kavenegar", nameFa: "کاوه‌نگار", category: "sms",
-  color: "#0ea5e9", glyph: "ک", description: "ارسال پیامک",
-  fields: [{ key: "apiKey", label: "کلید API", type: "secret", required: true }],
-  tools: [
-    defineTool({
-      name: "kavenegar_send_sms", title: "ارسال پیامک",
-      description: "Send an SMS via Kavenegar",
-      input: { receptor: z.string(), message: z.string() },
-      handler: (a, ctx) => request(`https://api.kavenegar.com/v1/${ctx.config.apiKey}/sms/send.json`, { json: a, secrets: [ctx.config.apiKey] }),
-    }),
-  ],
-};
-```
-
-و در `src/providers/index.ts` به آرایه اضافه‌اش کنید. داشبورد، فرم تنظیمات، آزمایشگاه و ابزار MCP خودکار ساخته می‌شوند.
-
-## استقرار با داکر
+## Development
 
 ```bash
-cp .env.example .env          # ADMIN_PASSWORD را عوض کنید
-docker compose up -d --build
-docker compose exec diba-mcp node dist/netcheck.js   # آیا سرور به APIها می‌رسد؟
+npm run dev          # watch mode
+npm test             # unit + end-to-end tests
+npm run typecheck
+npm run build
 ```
 
-راهنمای کامل قدم‌به‌قدم (سرور خارج از ایران، تونل SSH، HTTPS با Caddy): **[DEPLOY.md](DEPLOY.md)**
+```
+src/
+├─ core/        engine, config store, inbox, media, network, auth, self-test
+├─ providers/   bale, eitaa, rubika, soroush
+├─ http/        Express router: /mcp, /api, dashboard
+├─ cli.ts       diba-mcp command
+└─ index.ts     library entry
+public/         dashboard (plain HTML, CSS and JS, no build step)
+test/           unit tests and an end-to-end test with a real MCP client
+```
 
-- **سرور خارج از ایران:** بعضی APIهای ایرانی IP خارجی را محدود می‌کنند. با `npm run netcheck` بررسی کنید؛ اگر بسته بود `SOCKS_PROXY` یا `HTTPS_PROXY` را به یک سرور داخل ایران بدهید. همه‌ی درخواست‌های بیرونی از `src/core/net.ts` رد می‌شوند.
-- داشبورد را روی اینترنت فقط با HTTPS باز کنید (پروفایل `https` در compose، با `TRUST_PROXY=1`).
-- تنظیمات و توکن‌ها در volume `diba-mcp-data` (فایل `config.json` با دسترسی 600) می‌مانند. هیچ‌وقت `.env` یا `data/` را commit نکنید.
+## Roadmap
 
-## نقشه‌ی راه
+- [x] Messengers: text, media, inbox, self-test
+- [ ] Buttons and a bot menu builder
+- [ ] SMS: Kavenegar, SMS.ir
+- [ ] Payments: Zarinpal, IDPay
+- [ ] Offline tools: national ID, Sheba, Jalali dates
 
-1. ✅ پیام‌رسان‌ها: بله، ایتا، روبیکا، سروش‌پلاس — متن، عکس، فایل، دریافت پیام و تست کامل
-2. دکمه‌ها در پیام‌ها و «منوی ربات» (پیام خوش‌آمد، دکمه‌ها و جواب خودکار) از داشبورد
-3. پیامک: کاوه‌نگار، SMS.ir، ملی‌پیامک
-4. پرداخت: زرین‌پال، IDPay (ساخت لینک و verify — callback روی پروژه‌ی میزبان)
-5. نقشه: نشان، Map.ir
-6. ابزارهای آفلاین: کد ملی، شبا، تاریخ شمسی، اعداد فارسی
-7. ذخیره‌ی لاگ در دیتابیس، چند کاربر و دسترسی جدا برای هر توکن
+## License
+
+[MIT](LICENSE)

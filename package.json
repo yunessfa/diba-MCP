@@ -1,6 +1,6 @@
 {
   "name": "diba-mcp",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "MCP server for Iranian messengers (Bale, Eitaa, Rubika, Soroush Plus) with a built-in Persian dashboard",
   "keywords": [
     "mcp",
@@ -40,7 +40,9 @@
     "dist",
     "public",
     "README.md",
+    "README.fa.md",
     "DEPLOY.md",
+    "LICENSE",
     ".env.example"
   ],
   "engines": {

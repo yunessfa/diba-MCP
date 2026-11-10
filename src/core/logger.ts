@@ -16,21 +16,13 @@ export interface CallLog {
 }
 
 export interface LoggerOptions {
-  /** پوشه‌ی فایل‌های لاگ. اگر نباشد لاگ فقط در حافظه می‌ماند */
   dir?: string;
-  /** تعداد لاگ نگه‌داشته‌شده در حافظه برای داشبورد */
   max?: number;
-  /** فایل‌های قدیمی‌تر از این تعداد روز پاک می‌شوند */
   retentionDays?: number;
 }
 
 const FILE_RE = /^calls-(\d{4}-\d{2}-\d{2})\.jsonl$/;
 
-/**
- * لاگ فراخوانی ابزارها:
- *  - در حافظه (برای داشبورد، سریع)
- *  - و در فایل روزانه‌ی JSONL در data/logs (بعد از ری‌استارت هم می‌ماند)
- */
 export class CallLogger {
   private items: CallLog[] = [];
   private readonly max: number;
@@ -57,7 +49,6 @@ export class CallLogger {
       .sort((a, b) => b.day.localeCompare(a.day));
   }
 
-  /** حذف فایل‌های قدیمی‌تر از retentionDays */
   prune(now = new Date()) {
     const cutoff = new Date(now.getTime() - this.retentionDays * 86_400_000).toISOString().slice(0, 10);
     for (const f of this.files()) if (f.day < cutoff) rmSync(join(this.dir!, f.name), { force: true });
@@ -70,9 +61,7 @@ export class CallLogger {
       for (const line of lines) {
         try {
           out.push(JSON.parse(line));
-        } catch {
-          /* خط خراب را رد کن */
-        }
+        } catch {}
         if (out.length >= this.max) break;
       }
       if (out.length >= this.max) break;

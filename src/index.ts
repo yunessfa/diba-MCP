@@ -1,14 +1,3 @@
-/**
- * نقطه‌ی ورود کتابخانه — برای الحاق به پروژه‌ی دیگر:
- *
- *   import express from "express";
- *   import { createDibaMcp } from "diba-mcp";
- *
- *   const dibaMcp = createDibaMcp({ dataDir: "./data/diba-mcp" });
- *   app.use("/diba-mcp", dibaMcp.router());          // داشبورد + /mcp
- *   // یا مستقیم از کد خودتان:
- *   await dibaMcp.engine.callTool("bale_send_message", { text: "سلام" }, "dashboard");
- */
 import { resolve } from "node:path";
 import { DibaMcpEngine, SERVER_VERSION } from "./core/engine.js";
 import { configureMedia } from "./core/media.js";
@@ -19,9 +8,7 @@ import { builtinProviders } from "./providers/index.js";
 
 export interface CreateOptions {
   dataDir?: string;
-  /** سرویس‌های اضافه (مثلاً سرویس اختصاصی پروژه‌ی میزبان) */
   extraProviders?: ProviderDef[];
-  /** فقط این سرویس‌ها بارگذاری شوند */
   only?: string[];
   env?: NodeJS.ProcessEnv;
 }
@@ -37,9 +24,7 @@ export function createDibaMcp(opts: CreateOptions = {}) {
     engine,
     dataDir,
     version: SERVER_VERSION,
-    /** express.Router شامل /mcp ، /api و داشبورد */
     router: (o?: RouterOptions) => createDibaMcpRouter(engine, o),
-    /** یک McpServer برای اتصال به هر transport دلخواه (stdio و ...) */
     createMcpServer: () => engine.createMcpServer(),
   };
 }

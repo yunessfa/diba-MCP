@@ -29,7 +29,7 @@ describe("ConfigStore", () => {
     const d = dir();
     new ConfigStore(d, {}).update("bale", { enabled: true, values: { token: "  abc:def  " } });
     const s2 = new ConfigStore(d, {});
-    assert.equal(s2.resolve(bale).values.token, "abc:def"); // trim شده
+    assert.equal(s2.resolve(bale).values.token, "abc:def");
     assert.equal(s2.isReady(bale), true);
   });
 

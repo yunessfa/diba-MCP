@@ -5,11 +5,6 @@ import { FormData } from "../core/net.js";
 import { defineTool, ProviderError, type ProviderContext, type ProviderDef } from "../core/types.js";
 import { chatIdOf } from "./telegram-like.js";
 
-/**
- * ایتا از طریق «ایتایار» (eitaayar.ir):
- *   {baseUrl}/{token}/{method}   — POST با form-data
- * نکته: ایتایار فقط ارسال به کانال/گروه را پشتیبانی می‌کند و دریافت پیام ندارد.
- */
 async function call(ctx: ProviderContext, method: string, form?: FormData, timeoutMs?: number) {
   const { token, baseUrl } = ctx.config;
   const data = await request(`${baseUrl.replace(/\/+$/, "")}/${token}/${method}`, { form, timeoutMs, secrets: [token] });
@@ -28,7 +23,6 @@ function formOf(obj: Record<string, unknown>): FormData {
   return f;
 }
 
-/** ایتایار file_id ندارد؛ همیشه آپلود می‌شود */
 async function sendFile(ctx: ProviderContext, value: string, fields: Record<string, unknown>, opts: { expect?: "image"; filename?: string } = {}) {
   if (!isUploadable(value)) throw new ProviderError("ایتا فقط لینک فایل یا فایل انتخاب‌شده را قبول می‌کند (file_id پشتیبانی نمی‌شود)");
   const media = await loadMedia(value, opts);

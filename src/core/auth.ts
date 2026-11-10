@@ -17,11 +17,6 @@ export function safeEqual(a: string, b: string): boolean {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-/**
- * نشست داشبورد به‌صورت کوکی امضاشده (HMAC) — بدون نگهداری در حافظه،
- * پس با ری‌استارت سرور کسی بیرون نمی‌افتد.
- * باطل کردن همه‌ی نشست‌ها: بالا بردن epoch (خروج یا تغییر رمز).
- */
 export class SignedSessions {
   constructor(
     private secret: () => string,
@@ -51,7 +46,6 @@ export class SignedSessions {
   }
 }
 
-/** محدودکننده‌ی پنجره‌ی ثابت (برای ورود و اندپوینت MCP) */
 export class RateLimiter {
   private hits = new Map<string, { n: number; reset: number }>();
   private lastSweep = 0;
@@ -61,7 +55,6 @@ export class RateLimiter {
     readonly windowMs = 10 * 60 * 1000,
   ) {}
 
-  /** true یعنی اجازه دارد */
   allow(key: string, now = Date.now()): boolean {
     this.sweep(now);
     const h = this.hits.get(key);
@@ -73,13 +66,11 @@ export class RateLimiter {
     return h.n <= this.max;
   }
 
-  /** چند ثانیه تا آزاد شدن */
   retryAfter(key: string, now = Date.now()): number {
     const h = this.hits.get(key);
     return h ? Math.max(1, Math.ceil((h.reset - now) / 1000)) : 0;
   }
 
-  /** پاک کردن کلیدهای منقضی تا حافظه بی‌نهایت بزرگ نشود */
   private sweep(now: number) {
     if (now - this.lastSweep < this.windowMs) return;
     this.lastSweep = now;

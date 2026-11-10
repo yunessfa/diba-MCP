@@ -54,7 +54,7 @@ describe("request() failure paths", () => {
   before(async () => {
     configureProxy({});
     server = createServer((req, res) => {
-      if (req.url === "/hang") return; // هیچ‌وقت جواب نده
+      if (req.url === "/hang") return;
       if (req.url === "/html") {
         res.writeHead(502, { "content-type": "text/html" });
         return res.end("<html>Bad Gateway</html>");

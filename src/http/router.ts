@@ -8,11 +8,8 @@ import { runNetcheck } from "../core/netcheck.js";
 import { hintFor, runSelfTest } from "../core/selftest.js";
 
 export interface RouterOptions {
-  /** نمایش داشبورد (پیش‌فرض: true). در پروژه‌ی میزبان می‌توانید خاموشش کنید */
   dashboard?: boolean;
-  /** دریافت خودکار پیام‌ها برای سرویس‌هایی که روشن کرده‌اند (پیش‌فرض: true) */
   inbox?: boolean;
-  /** پوشه‌ی فایل‌های داشبورد */
   publicDir?: string;
 }
 
@@ -20,22 +17,13 @@ const COOKIE = "dmcp_sid";
 const SESSION_MAX_AGE = 12 * 60 * 60;
 const defaultPublic = fileURLToPath(new URL("../../public", import.meta.url));
 
-/**
- * یک express.Router کامل:
- *   POST /mcp         ← اندپوینت MCP (Streamable HTTP، بدون نشست)
- *   /api/*            ← API داشبورد
- *   /                 ← داشبورد
- * پروژه‌ی میزبان: app.use("/diba-mcp", createDibaMcpRouter(engine))
- */
 export function createDibaMcpRouter(engine: DibaMcpEngine, opts: RouterOptions = {}): Router {
   const router = express.Router();
   const env = process.env;
   const sessions = new SignedSessions(() => engine.store.sessionSecret, () => engine.store.sessionEpoch);
   const loginLimiter = new RateLimiter(8, 10 * 60_000);
-  // محدودیت درخواست به اندپوینت MCP به ازای هر IP (پیش‌فرض ۱۲۰ در دقیقه)
   const mcpLimiter = new RateLimiter(Math.max(1, Number(env.MCP_RATE_LIMIT) || 120), 60_000);
 
-  // کد راه‌اندازی اولیه — فقط وقتی هنوز رمز ادمین تعیین نشده
   let setupCode: string | null = null;
   const needsSetup = () => !env.ADMIN_PASSWORD && !engine.store.admin;
   if (needsSetup()) {
@@ -43,7 +31,6 @@ export function createDibaMcpRouter(engine: DibaMcpEngine, opts: RouterOptions =
     console.error(`\n[diba-mcp] کد راه‌اندازی داشبورد: ${setupCode}\n`);
   }
 
-  // ---------------- MCP ----------------
   const mcpAuth = (req: Request, res: Response, next: NextFunction) => {
     const h = req.headers.authorization ?? "";
     const token = h.startsWith("Bearer ") ? h.slice(7).trim() : "";
@@ -93,9 +80,7 @@ export function createDibaMcpRouter(engine: DibaMcpEngine, opts: RouterOptions =
 
   if (opts.dashboard === false) return router;
 
-  // ---------------- API داشبورد ----------------
   const api = express.Router();
-  // ابزارهای رسانه‌ای فایل انتخاب‌شده را به‌صورت data URL می‌فرستند
   api.use("/tools", express.json({ limit: "30mb" }));
   api.use(express.json({ limit: "1mb" }));
 
@@ -139,13 +124,11 @@ export function createDibaMcpRouter(engine: DibaMcpEngine, opts: RouterOptions =
   });
 
   api.post("/auth/logout", (req, res) => {
-    // خروج = باطل شدن همه‌ی نشست‌ها (فقط یک ادمین داریم)
     if (sessions.valid(sid(req))) engine.store.bumpSessionEpoch();
     setCookie(req, res, "", 0);
     res.json({ ok: true });
   });
 
-  // از اینجا به بعد ورود لازم است
   api.use((req, res, next) => {
     if (!sessions.valid(sid(req))) return void res.status(401).json({ error: "ابتدا وارد شوید" });
     next();
@@ -176,7 +159,7 @@ export function createDibaMcpRouter(engine: DibaMcpEngine, opts: RouterOptions =
     for (const f of p.fields) {
       const v = values?.[f.key];
       if (typeof v !== "string") continue;
-      if (f.type === "secret" && v === "") continue; // خالی = بدون تغییر
+      if (f.type === "secret" && v === "") continue;
       if (f.type === "url" && v && !/^https?:\/\//i.test(v))
         return void res.status(400).json({ error: `«${f.label}» باید با http یا https شروع شود` });
       clean[f.key] = v;
@@ -204,7 +187,6 @@ export function createDibaMcpRouter(engine: DibaMcpEngine, opts: RouterOptions =
 
   api.get("/netcheck", async (_req, res) => res.json(await runNetcheck(engine)));
 
-  // ---------------- تست کامل ----------------
   api.post("/providers/:id/selftest", async (req, res) => {
     try {
       res.json(await runSelfTest(engine, String(req.params.id), { send: req.body?.send === true, chatId: req.body?.chatId }));
@@ -217,7 +199,6 @@ export function createDibaMcpRouter(engine: DibaMcpEngine, opts: RouterOptions =
     res.json(await engine.runAction(String(req.params.id), String(req.params.name)));
   });
 
-  // ---------------- صندوق پیام‌ها ----------------
   api.get("/inbox", (req, res) => {
     const provider = typeof req.query.provider === "string" ? req.query.provider : undefined;
     const chat = typeof req.query.chat === "string" ? req.query.chat : undefined;
@@ -260,15 +241,12 @@ export function createDibaMcpRouter(engine: DibaMcpEngine, opts: RouterOptions =
 
   router.use("/api", api);
 
-  // ---------------- فایل‌های داشبورد ----------------
   router.use((req, res, next) => {
-    // مسیرهای نسبی داشبورد به اسلش پایانی نیاز دارند
     if (req.method === "GET" && req.path === "/" && req.baseUrl && !req.originalUrl.split("?")[0].endsWith("/")) {
       return void res.redirect(301, req.originalUrl.replace(/(\?|$)/, "/$1"));
     }
     next();
   });
-  // no-cache: مرورگر هر بار با ETag چک می‌کند؛ بعد از آپدیت، نسخه‌ی قدیمی داشبورد نمی‌ماند
   router.use(
     express.static(opts.publicDir ?? defaultPublic, {
       index: "index.html",

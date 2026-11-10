@@ -1,5 +1,3 @@
-# Caddy گواهی HTTPS را خودکار از Let's Encrypt می‌گیرد.
-# پیش‌نیاز: رکورد A دامنه به IP سرور اشاره کند و پورت‌های 80 و 443 باز باشند.
 {$DOMAIN} {
 	encode gzip
 	reverse_proxy diba-mcp:3790

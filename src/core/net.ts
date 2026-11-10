@@ -1,11 +1,3 @@
-/**
- * لایه‌ی شبکه: همه‌ی درخواست‌های بیرونی از اینجا رد می‌شوند تا بشود
- * برای سرورهای خارج از ایران، ترافیک را از یک پراکسی داخل ایران عبور داد.
- *
- *   SOCKS_PROXY=socks5://user:pass@host:1080     ← مثلاً تونل ssh -D به سرور ایران
- *   HTTPS_PROXY=http://host:3128                 ← پراکسی HTTP معمولی
- *   NO_PROXY=localhost,127.0.0.1                 ← آدرس‌هایی که مستقیم بروند
- */
 import { Agent, EnvHttpProxyAgent, fetch as undiciFetch, FormData as UndiciFormData, Socks5ProxyAgent, type Dispatcher } from "undici";
 
 let dispatcher: Dispatcher = new Agent();
@@ -21,7 +13,6 @@ function hidePassword(url: string) {
   }
 }
 
-/** یک بار در شروع برنامه صدا زده می‌شود (env را می‌خواند) */
 export function configureProxy(env: NodeJS.ProcessEnv = process.env) {
   const socks = env.SOCKS_PROXY || env.socks_proxy;
   const http = env.HTTPS_PROXY || env.https_proxy || env.HTTP_PROXY || env.http_proxy;
@@ -69,10 +60,8 @@ const EXPLAIN: Record<string, string> = {
   TimeoutError: "جوابی نیامد (احتمالاً محدودیت IP خارجی)",
 };
 
-/** خطای شبکه را به یک جمله‌ی فارسی قابل فهم تبدیل می‌کند */
 export function describeNetError(err: any): string {
   if (err?.name === "TimeoutError") return `${EXPLAIN.TimeoutError} — Timeout`;
-  // عمیق‌ترین علت را پیدا کن
   const chain: any[] = [];
   for (let e = err; e && chain.length < 5; e = e.cause) chain.push(e);
   const text = chain.map((e) => String(e?.message ?? "")).join(" | ");

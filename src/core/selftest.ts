@@ -1,7 +1,3 @@
-/**
- * «تست کامل» یک پیام‌رسان: قدم‌به‌قدم بررسی می‌کند چه چیزی کار می‌کند و
- * برای هر خطا یک راهنمایی فارسی می‌دهد. خروجی را می‌شود به‌صورت متن کپی کرد.
- */
 import type { DibaMcpEngine } from "./engine.js";
 import { proxyMode } from "./net.js";
 import { probe } from "./netcheck.js";
@@ -32,7 +28,6 @@ export interface SelfTestReport {
   text: string;
 }
 
-/** راهنمایی بر اساس متن خطا */
 export function hintFor(error: string, step: string): string | undefined {
   const e = error.toLowerCase();
   if (/webhook/.test(e)) return "روی این ربات وبهوک تنظیم شده و تا وقتی هست، دریافت پیام کار نمی‌کند. از صفحه‌ی «پیام‌ها» دکمه‌ی «حذف وبهوک» را بزنید.";
@@ -56,7 +51,6 @@ function summarize(v: unknown): string | undefined {
   if (!v || typeof v !== "object") return v === undefined ? undefined : String(v);
   const o: any = (v as any).bot ?? v;
   const name = o.first_name ?? o.bot_title ?? o.title ?? o.name;
-  // \u2066…\u2069: جداسازی متن چپ‌به‌راست تا در متن فارسی به‌هم نریزد
   const ltr = (t: string) => `\u2066${t}\u2069`;
   const user = o.username ? ltr(`@${o.username}`) : undefined;
   const id = o.id ?? o.bot_id;

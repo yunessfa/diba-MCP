@@ -3,7 +3,6 @@ import { ProviderError } from "./types.js";
 
 const DEFAULT_TIMEOUT = Number(process.env.UPSTREAM_TIMEOUT_MS) || 20_000;
 
-/** توکن‌ها را از متن خطا/لاگ پاک می‌کند */
 export function redact(text: string, secrets: string[]): string {
   let out = text;
   for (const s of secrets) {
@@ -17,11 +16,9 @@ export interface RequestOptions {
   json?: unknown;
   form?: FormData | URLSearchParams;
   timeoutMs?: number;
-  /** برای پاک کردن از پیام خطا */
   secrets?: string[];
 }
 
-/** درخواست HTTP با timeout و پیام خطای فارسی */
 export async function request(url: string, opts: RequestOptions = {}): Promise<any> {
   const { method = "POST", json, form, timeoutMs = DEFAULT_TIMEOUT, secrets = [] } = opts;
   const headers: Record<string, string> = { Accept: "application/json" };

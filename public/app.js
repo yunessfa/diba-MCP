@@ -1,8 +1,6 @@
-// dibaMCP — داشبورد (بدون فریم‌ورک)
 const $app = document.getElementById("app");
 const state = { providers: [], overview: null, logs: [], logFilter: { ok: "all", provider: "" }, openProv: null, timer: null };
 
-// ---------------------------------------------------------------- utils
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const fa = (n) => (n === null || n === undefined ? "—" : Number(n).toLocaleString("fa-IR"));
 const rtf = new Intl.RelativeTimeFormat("fa", { numeric: "auto" });
@@ -95,22 +93,21 @@ function status(p) {
   return '<span class="pill pill-off">خاموش</span>';
 }
 
-// ---------------------------------------------------------------- auth
-function switchboardArt() {
-  const nodes = [["#1fb486", 120, 90], ["#f08a24", 400, 80], ["#c026d3", 430, 300], ["#3b82f6", 110, 290]];
-  return `<svg viewBox="0 0 540 380" aria-hidden="true">
-    ${nodes.map(([c, x, y]) => `<path class="wire live" d="M270 190 Q ${(270 + x) / 2} ${y}, ${x} ${y}"/>`).join("")}
-    <circle cx="270" cy="190" r="56" fill="#24327a"/><circle cx="270" cy="190" r="20" fill="#2bb3a3"/>
-    ${nodes.map(([c, x, y]) => `<circle cx="${x}" cy="${y}" r="26" fill="${c}"/>`).join("")}
-  </svg>`;
+function authArt() {
+  return `<div class="art-card">
+    <div class="art-logo"><img src="logo.png" alt=""></div>
+    <h2>dibaMCP</h2>
+    <p>پیام‌رسان‌های ایرانی را به هوش مصنوعی وصل کنید؛ ارسال و دریافت پیام، عکس و فایل از یک داشبورد.</p>
+    <div class="art-chips"><span>بله</span><span>ایتا</span><span>روبیکا</span><span>سروش‌پلاس</span></div>
+  </div>`;
 }
 
 function renderAuth(needsSetup) {
   $app.innerHTML = `
   <div class="auth">
-    <div class="auth-art">${switchboardArt()}</div>
+    <div class="auth-art">${authArt()}</div>
     <div class="auth-form">
-      <div class="brand" style="padding:0"><span class="brand-mark"></span><div><b>dibaMCP</b><small>اتصال پیام‌رسان‌های ایرانی به هوش مصنوعی</small></div></div>
+      <div class="brand" style="padding:0"><img class="brand-mark" src="logo.png" alt=""><div><b>dibaMCP</b><small>اتصال پیام‌رسان‌های ایرانی به هوش مصنوعی</small></div></div>
       ${needsSetup ? `
         <h1>راه‌اندازی اولیه</h1>
         <p>کد شش‌حرفی‌ای که هنگام اجرای سرور در کنسول چاپ شد را وارد کنید و یک رمز برای داشبورد بسازید.</p>
@@ -148,12 +145,11 @@ function renderAuth(needsSetup) {
   });
 }
 
-// ---------------------------------------------------------------- shell
 function renderShell() {
   $app.innerHTML = `
   <div class="shell">
     <aside class="side">
-      <div class="brand"><span class="brand-mark"></span><div><b>dibaMCP</b><small id="ver"></small></div></div>
+      <div class="brand"><img class="brand-mark" src="logo.png" alt=""><div><b>dibaMCP</b><small id="ver"></small></div></div>
       <nav class="nav" aria-label="بخش‌ها">
         ${pages.map((p) => `<a href="#/${p.id}" data-page="${p.id}">${icons[p.id]}<span>${p.title}</span></a>`).join("")}
       </nav>
@@ -188,10 +184,9 @@ async function render() {
 }
 
 function head(title, desc, actions = "") {
-  return `<header class="page-head"><div><h1>${title}</h1>${desc ? `<p>${desc}</p>` : ""}</div>${actions}</header>`;
+  return `<header class="page-head"><div class="ph-title"><span class="tile">${icons[route().page]}</span><div><h1>${title}</h1>${desc ? `<p>${desc}</p>` : ""}</div></div>${actions}</header>`;
 }
 
-// ---------------------------------------------------------------- overview
 function hubSvg(providers, activeTools) {
   const W = 560, H = 380, cx = W / 2, cy = H / 2;
   const angles = providers.length === 4 ? [-38, 38, 142, 218] : providers.map((_, i) => (360 / providers.length) * i - 90);
@@ -207,20 +202,20 @@ function hubSvg(providers, activeTools) {
   const sub = (n) => (n.ready ? `${fa(n.toolCount)} ابزار` : n.enabled ? "نیاز به تنظیم" : "خاموش");
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="وضعیت اتصال پیام‌رسان‌ها">
     <defs><linearGradient id="halo" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#2bb3a3"/><stop offset=".5" stop-color="#e8a33d"/><stop offset="1" stop-color="#2bb3a3" stop-opacity="0"/>
+      <stop offset="0" stop-color="#5c9dff"/><stop offset=".55" stop-color="#1b64fe"/><stop offset="1" stop-color="#5c9dff" stop-opacity="0"/>
     </linearGradient></defs>
     ${wires}
     <g class="hub">
-      <circle class="hub-halo" cx="${cx}" cy="${cy}" r="62" fill="none" stroke="url(#halo)" stroke-width="2" stroke-dasharray="120 60 40 30"/>
-      <circle cx="${cx}" cy="${cy}" r="50" fill="var(--lapis-600)"/>
-      <circle cx="${cx}" cy="${cy}" r="50" fill="none" stroke="rgba(255,255,255,.12)"/>
-      <text x="${cx}" y="${cy - 2}" text-anchor="middle" font-size="22" font-weight="800" fill="#fff">${fa(activeTools)}</text>
-      <text x="${cx}" y="${cy + 18}" text-anchor="middle" font-size="11" fill="#c6cdf0">ابزار فعال</text>
+      <circle class="hub-halo" cx="${cx}" cy="${cy}" r="66" fill="none" stroke="url(#halo)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="130 60 40 34"/>
+      <circle class="hub-plate" cx="${cx}" cy="${cy}" r="54"/>
+      <image href="logo.png" x="${cx - 30}" y="${cy - 34}" width="60" height="60"/>
+      <rect class="hub-badge" x="${cx - 46}" y="${cy + 40}" width="92" height="26" rx="13"/>
+      <text x="${cx}" y="${cy + 57.5}" text-anchor="middle" font-size="12">${fa(activeTools)} ابزار فعال</text>
     </g>
     ${nodes.map((n) => `
       <g class="node${n.ready ? "" : " off"}"><a href="#/providers?open=${n.id}" aria-label="${esc(n.nameFa)}">
-        <circle class="node-ring" cx="${n.x}" cy="${n.y}" r="33"/>
-        <g class="disc"><circle cx="${n.x}" cy="${n.y}" r="26" fill="${n.color}"/>
+        <rect class="node-ring" x="${n.x - 33}" y="${n.y - 33}" width="66" height="66" rx="22"/>
+        <g class="ndisc"><rect x="${n.x - 26}" y="${n.y - 26}" width="52" height="52" rx="16" fill="${n.color}"/>
         <text class="glyph" x="${n.x}" y="${n.y + 7}" text-anchor="middle">${esc(n.glyph)}</text></g>
         <text class="label" x="${n.x}" y="${n.y + 54}" text-anchor="middle">${esc(n.nameFa)}</text>
         <text class="sub" x="${n.x}" y="${n.y + 71}" text-anchor="middle">${sub(n)}</text>
@@ -276,7 +271,6 @@ async function pageOverview(main) {
   };
 }
 
-// ---------------------------------------------------------------- providers
 function fieldHtml(p, f) {
   const id = `${p.id}-${f.key}`;
   const locked = f.fromEnv;
@@ -443,7 +437,6 @@ async function pageProviders(main, q) {
   });
 }
 
-// ---------------------------------------------------------------- playground
 function inputFor(name, prop, required, p) {
   const id = `arg-${name}`;
   const desc = prop.description ? `<span class="hint ltr" style="display:block;text-align:right">${esc(prop.description)}</span>` : "";
@@ -462,7 +455,6 @@ function inputFor(name, prop, required, p) {
     : `<div class="field">${label}<input id="${id}" class="input${/(_id|url|photo)$/.test(name) ? " ltr-input" : ""}" dir="auto" data-arg="${name}" placeholder="${esc(ph)}">${desc}</div>`;
 }
 
-// ---------- فیلد رسانه: لینک، file_id یا انتخاب فایل از دستگاه ----------
 const MAX_UPLOAD = 20 * 1024 * 1024;
 const humanSize = (n) => (n < 1024 * 1024 ? `${fa(Math.max(1, Math.round(n / 1024)))} کیلوبایت` : `${fa((n / 1048576).toFixed(1))} مگابایت`);
 
@@ -547,9 +539,6 @@ function bindMediaFields(root) {
   });
 }
 
-// ---------- کشیدن و رها کردن / چسباندن در کل صفحه ----------
-// فایل در هر جای صفحه رها شود به فیلد رسانه‌ی ابزار باز می‌رود، و مرورگر هیچ‌وقت
-// به‌جای ارسال، خود فایل را باز نمی‌کند.
 const draggingFiles = (e) => [...(e.dataTransfer?.types ?? [])].includes("Files");
 let dragDepth = 0;
 const endDrag = () => { dragDepth = 0; document.body.classList.remove("file-drag"); };
@@ -579,7 +568,6 @@ window.addEventListener("drop", (e) => {
     else toast("برای ارسال فایل، اول در «آزمایش ابزارها» یک ابزار ارسال عکس یا فایل را باز کنید", true);
     return;
   }
-  // لینک یا عکسی که از یک سایت دیگر کشیده شده
   if (e.target.closest?.(".media-box") && box?._useUrl) {
     const url = e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text/plain");
     if (url && /^https?:\/\//i.test(url.trim())) { e.preventDefault(); box._useUrl(url); }
@@ -598,7 +586,6 @@ document.addEventListener("paste", (e) => {
   box._useFile(generic ? new File([f], `clipboard-${Date.now()}.${(f.type.split("/")[1] || "png").replace("jpeg", "jpg")}`, { type: f.type }) : f);
 });
 
-/** برای نمایش «ورودی JSON»: data URLها کوتاه نشان داده می‌شوند */
 function shortenDataUrls(args) {
   return Object.fromEntries(Object.entries(args).map(([k, v]) => [k, typeof v === "string" && v.startsWith("data:") ? `${v.slice(0, v.indexOf(","))},… (${humanSize(v.length * 0.75)})` : v]));
 }
@@ -672,7 +659,6 @@ async function pagePlayground(main, q) {
   });
 }
 
-// ---------------------------------------------------------------- inbox
 const chatTypeFa = { private: "خصوصی", group: "گروه", channel: "کانال", unknown: "" };
 const kindFa = { photo: "عکس", file: "فایل", video: "ویدیو", voice: "صوت", location: "موقعیت", button: "دکمه", other: "" };
 
@@ -852,7 +838,6 @@ async function pageInbox(main, q) {
   });
 }
 
-// ---------------------------------------------------------------- logs
 async function pageLogs(main) {
   if (!state.providers.length) state.providers = await api("providers");
   main.innerHTML = `${head("گزارش فراخوانی‌ها", "سیصد فراخوانی آخر، چه از طرف مدل و چه از داشبورد. همه‌ی فراخوانی‌ها در پوشه‌ی data/logs هم ذخیره می‌شوند.",
@@ -908,7 +893,6 @@ async function pageLogs(main) {
   };
 }
 
-// ---------------------------------------------------------------- connect
 async function pageConnect(main) {
   const c = await api("connection");
   const base = location.origin + location.pathname.replace(/[^/]*$/, "");
@@ -918,8 +902,8 @@ async function pageConnect(main) {
     "Cursor / کلاینت‌های JSON": { lang: "json", code: JSON.stringify({ mcpServers: { "diba-mcp": { url, headers: { Authorization: `Bearer ${c.token}` } } } }, null, 2) },
     "Claude Desktop (stdio)": {
       lang: "json",
-      code: JSON.stringify({ mcpServers: { "diba-mcp": { command: "npx", args: ["-y", "diba-mcp", "stdio"] } } }, null, 2),
-      note: "در حالت stdio سرور روی همان کامپیوتر اجرا می‌شود و تنظیمات را از ~/.diba-mcp می‌خواند (همان پوشه‌ای که npx diba-mcp برای داشبورد استفاده می‌کند)؛ توکن MCP لازم نیست. پوشه‌ی دیگر: \"--data\", \"/path\" را به args اضافه کنید.",
+      code: JSON.stringify({ mcpServers: { "diba-mcp": { command: "diba-mcp", args: ["stdio"] } } }, null, 2),
+      note: "در حالت stdio سرور روی همان کامپیوتر اجرا می‌شود و تنظیمات را از ~/.diba-mcp می‌خواند، همان پوشه‌ای که دستور diba-mcp برای داشبورد استفاده می‌کند. توکن MCP لازم نیست.",
     },
     "الحاق به پروژه‌ی Express": {
       lang: "js",
@@ -974,7 +958,6 @@ async function pageConnect(main) {
   });
 }
 
-// ---------------------------------------------------------------- boot
 async function boot() {
   clearInterval(state.timer);
   let s;

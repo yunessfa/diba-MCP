@@ -1,11 +1,5 @@
 name: Release
 
-# push به main          → ایمیج ghcr.io/yunessfa/diba-mcp:latest
-# Run workflow (دستی)    → نسخه‌ی package.json منتشر می‌شود:
-#   یا push تگ vX.Y.Z      - ایمیج :X.Y.Z
-#                          - GitHub Release با فایل نصب diba-mcp-X.Y.Z.tgz
-#                          - انتشار روی npm (اگر secret به اسم NPM_TOKEN تنظیم شده باشد)
-
 on:
   push:
     branches: [main]
